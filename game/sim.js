@@ -69,6 +69,11 @@ const rid = (n = 16) => {
 
 const placeName = (loc) => (loc === "lab" ? "" : "the ") + world.locs[loc].name;
 const newItems = () => ({ data: {}, books: [], models: 0, deploys: 0, gpus: 0, bench: 0, sand: 0, peers: 0 });
+/** Short code a winner shows at the booth. No look-alike characters (0/O, 1/I/L). */
+function claimCode() {
+  const abc = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)), (v) => abc[v % abc.length]).join("");
+}
 export const levelOf = (xp) => Math.floor(Math.sqrt(xp / 40)) + 1;
 
 export function cleanLook(look, unlocked = FREE_ACCS) {
@@ -86,8 +91,15 @@ export class Sim {
     this.cfg = cfg;
     this.players = new Map();
     this.byToken = new Map();
-    this.byEmail = new Map();
+    this.byName = new Map(); // lower-cased name -> player; names are unique
     this.raffles = saved?.raffles || [];
+    for (const r of this.raffles) for (const w of r.winners) {
+      // saves from the email-based version: drop the address, issue a booth code
+      delete w.email; delete w.claimedAt; delete w.sentAt;
+      if (!w.code) w.code = claimCode();
+      if (w.status !== "given") w.status = w.status === "sent" ? "given" : "unclaimed";
+      if (w.givenAt === undefined) w.givenAt = null;
+    }
     this.events = saved?.events || [];
     this.arcadeHigh = saved?.arcadeHigh || { score: 0, name: "" };
     this.lastRaffleHour = Math.floor(Date.now() / 3600000); // never draw on boot
@@ -95,18 +107,21 @@ export class Sim {
     this.onRaffle = null;
     for (const p of saved?.players || []) {
       // tolerate saves from older versions: unknown activities are dropped
+      delete p.email; // no longer collected
+      p.log = (p.log || []).filter((e) => !e.text.includes("@")); // old diary lines quoted the address
       p.items = { ...newItems(), ...p.items };
       p.queue = (p.queue || []).filter((id) => Object.hasOwn(ACTS, id));
       if (p.act && !Object.hasOwn(ACTS, p.act.id)) { p.act = null; p.inside = false; }
       if (p.goal && !Object.hasOwn(ACTS, p.goal.act)) { p.goal = null; p.path = []; }
       this.index(p);
     }
+    if (saved) this.dirty = true; // write the cleaned-up save back to disk straight away
   }
 
   index(p) {
     this.players.set(p.id, p);
     this.byToken.set(p.token, p);
-    this.byEmail.set(p.email, p);
+    this.byName.set(p.name.toLowerCase(), p);
   }
 
   serialize() {
@@ -118,9 +133,9 @@ export class Sim {
     };
   }
 
-  addPlayer({ name, email, look }) {
+  addPlayer({ name, look }) {
     const p = {
-      id: rid(5), token: rid(24), name, email,
+      id: rid(5), token: rid(24), name,
       look: cleanLook(look),
       x: world.SPAWN.x + Math.floor(Math.random() * 6), y: world.SPAWN.y,
       dir: 0, path: [], queue: [], goal: null, act: null, inside: false,
@@ -141,7 +156,7 @@ export class Sim {
     if (!p) return false;
     this.players.delete(id);
     this.byToken.delete(p.token);
-    this.byEmail.delete(p.email);
+    this.byName.delete(p.name.toLowerCase());
     this.dirty = true;
     return true;
   }
@@ -332,7 +347,7 @@ export class Sim {
   // ---- raffle ----
 
   hasWon(p) {
-    return this.raffles.some((r) => r.winners.some((w) => w.playerId === p.id || w.email === p.email));
+    return this.raffles.some((r) => r.winners.some((w) => w.playerId === p.id));
   }
 
   draw(now, manual = false) {
@@ -349,10 +364,10 @@ export class Sim {
       for (; idx < bag.length - 1; idx++) { if ((r -= bag[idx].tickets) < 0) break; }
       const p = bag.splice(idx, 1)[0];
       winners.push({
-        playerId: p.id, name: p.name, email: p.email, tickets: p.tickets,
-        status: "unclaimed", claimedAt: null, sentAt: null,
+        playerId: p.id, name: p.name, tickets: p.tickets,
+        code: claimCode(), status: "unclaimed", givenAt: null,
       });
-      this.logFor(p, `You won the raffle: ${this.cfg.rafflePrize}! Claim it below.`);
+      this.logFor(p, `You won the raffle: ${this.cfg.rafflePrize}! Show your claim code at the Runpod booth.`);
     }
     for (const p of this.players.values()) p.tickets = 0;
     const raffle = {
@@ -377,24 +392,10 @@ export class Sim {
       for (const w of r.winners) {
         if (w.playerId !== p.id) continue;
         const expired = w.status === "unclaimed" && Date.now() > r.claimBy;
-        out.push({ raffleId: r.id, prize: r.prize, at: r.at, claimBy: r.claimBy, status: expired ? "expired" : w.status });
+        out.push({ raffleId: r.id, prize: r.prize, at: r.at, claimBy: r.claimBy, code: w.code, status: expired ? "expired" : w.status });
       }
     }
     return out;
-  }
-
-  claim(p, raffleId) {
-    const r = this.raffles.find((x) => x.id === raffleId);
-    const w = r?.winners.find((x) => x.playerId === p.id);
-    if (!w) return "No prize found.";
-    if (w.status !== "unclaimed") return null; // already claimed: idempotent
-    if (Date.now() > r.claimBy) return "This prize has expired.";
-    w.status = "claimed";
-    w.claimedAt = Date.now();
-    w.email = p.email;
-    this.logFor(p, `Prize claimed! ${r.prize} will be emailed to ${p.email}.`);
-    this.dirty = true;
-    return null;
   }
 
   // ---- views ----

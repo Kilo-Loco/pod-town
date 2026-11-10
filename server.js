@@ -130,7 +130,7 @@ async function staticFile(name) {
 function meView(p) {
   const now = Date.now();
   return {
-    now, id: p.id, name: p.name, email: p.email, look: p.look, unlocked: p.unlocked,
+    now, id: p.id, name: p.name, look: p.look, unlocked: p.unlocked,
     level: levelOf(p.xp), xp: p.xp, nextLevelXp: 40 * levelOf(p.xp) ** 2, coins: p.coins,
     tickets: p.tickets, buff: p.buff,
     status: sim.statusOf(p),
@@ -181,14 +181,11 @@ async function handle(req) {
   if (path === "/api/register" && req.method === "POST") {
     const b = await body(req);
     const name = String(b.name || "").trim().replace(/\s+/g, " ");
-    const email = String(b.email || "").trim().toLowerCase();
     if (!/^[A-Za-z0-9][A-Za-z0-9 _-]{1,11}$/.test(name)) return fail(400, "Name must be 2-12 letters or numbers.");
     if (isRude(name)) return fail(400, "Please pick a different name.");
-    if (email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail(400, "Please enter a valid email.");
-    if (b.consent !== true) return fail(400, "Please accept the raffle contact terms.");
-    if (sim.byEmail.has(email)) return fail(409, "That email already has a character. See booth staff if you lost access.");
+    if (sim.byName.has(name.toLowerCase())) return fail(409, "That name is taken. Please pick another.");
     if (sim.players.size >= MAX_PLAYERS) return fail(503, "The town is full right now!");
-    const p = sim.addPlayer({ name, email, look: b.look });
+    const p = sim.addPlayer({ name, look: b.look });
     return json({ token: p.token, me: meView(p) });
   }
 
@@ -234,12 +231,6 @@ async function handle(req) {
       return json({ me: meView(p) });
     }
 
-    if (path === "/api/claim" && req.method === "POST") {
-      const b = await body(req);
-      const err = sim.claim(p, String(b.raffleId || ""));
-      if (err) return fail(400, err);
-      return json({ me: meView(p) });
-    }
     return fail(404, "not found");
   }
 
@@ -251,17 +242,17 @@ async function handle(req) {
       return json({
         now: Date.now(), joinUrl: JOIN_URL, prize: cfg.rafflePrize, llm: cfg.llmBaseUrl ? cfg.llmModel || "configured" : "keywords only",
         players: [...sim.players.values()].map((p) => ({
-          id: p.id, name: p.name, email: p.email, level: levelOf(p.xp), xp: p.xp,
+          id: p.id, name: p.name, level: levelOf(p.xp), xp: p.xp,
           tickets: p.tickets, done: p.done, status: sim.statusOf(p), lastSeen: p.lastSeen,
         })),
         raffles: sim.raffles.slice().reverse(),
       });
     }
     if (path === "/api/admin/winners.csv" && req.method === "GET") {
-      const rows = [["raffle_id", "drawn_at", "prize", "name", "email", "status", "claimed_at", "sent_at"]];
+      const rows = [["raffle_id", "drawn_at", "prize", "name", "claim_code", "status", "given_at"]];
       for (const r of sim.raffles) for (const w of r.winners) {
-        rows.push([r.id, new Date(r.at).toISOString(), r.prize, w.name, w.email, w.status,
-          w.claimedAt ? new Date(w.claimedAt).toISOString() : "", w.sentAt ? new Date(w.sentAt).toISOString() : ""]);
+        rows.push([r.id, new Date(r.at).toISOString(), r.prize, w.name, w.code, w.status,
+          w.givenAt ? new Date(w.givenAt).toISOString() : ""]);
       }
       return new Response(rows.map((r) => r.map(csvCell).join(",")).join("\n") + "\n", {
         headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="pod-town-winners.csv"' },
@@ -270,12 +261,11 @@ async function handle(req) {
     if (req.method === "POST") {
       const b = await body(req);
       if (path === "/api/admin/draw") return json({ raffle: sim.draw(Date.now(), true) });
-      if (path === "/api/admin/mark-sent") {
+      if (path === "/api/admin/mark-given") {
         const w = sim.raffles.find((r) => r.id === b.raffleId)?.winners.find((x) => x.playerId === b.playerId);
         if (!w) return fail(404, "Winner not found.");
-        if (w.status !== "claimed" && w.status !== "sent") return fail(400, "Prize has not been claimed yet.");
-        w.status = b.sent === false ? "claimed" : "sent";
-        w.sentAt = b.sent === false ? null : Date.now();
+        w.status = b.given === false ? "unclaimed" : "given";
+        w.givenAt = b.given === false ? null : Date.now();
         sim.dirty = true;
         return json({ ok: true });
       }

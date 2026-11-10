@@ -18,7 +18,9 @@
   input { font: inherit; padding: 8px; background: #000010; color: #fff; border: 2px solid #210e5e; border-radius: 4px; width: 320px; max-width: 100%; }
   .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
   .tag { padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #000010; }
-  .unclaimed { background: #FFC01F; } .claimed { background: #43FFE3; } .sent { background: #41F420; }
+  .unclaimed { background: #FFC01F; } .given { background: #41F420; }
+  .code { font-weight: bold; letter-spacing: 2px; }
+  tr.miss { display: none; }
   .dim { color: #b3b3c0; }
   #msg { color: #FCB1FF; min-height: 1.4em; }
 </style>
@@ -32,13 +34,14 @@
     <div class="dim" id="info"></div>
     <h2>Raffle winners</h2>
     <div class="bar">
+      <input id="find" type="text" placeholder="Check a claim code" autocomplete="off" style="width:220px;text-transform:uppercase">
       <button id="csv">Download winners CSV</button>
       <button class="warn" id="draw">Draw a raffle now</button>
       <button class="ghost" id="refresh">Refresh</button>
     </div>
-    <table><thead><tr><th>Drawn</th><th>Prize</th><th>Winner</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody id="wins"></tbody></table>
+    <table><thead><tr><th>Drawn</th><th>Prize</th><th>Winner</th><th>Claim code</th><th>Status</th><th></th></tr></thead><tbody id="wins"></tbody></table>
     <h2>Players (<span id="pc">0</span>)</h2>
-    <table><thead><tr><th>Name</th><th>Email</th><th>Lv</th><th>Tickets</th><th>Done</th><th>Status</th><th></th></tr></thead><tbody id="players"></tbody></table>
+    <table><thead><tr><th>Name</th><th>Lv</th><th>Tickets</th><th>Done</th><th>Status</th><th></th></tr></thead><tbody id="players"></tbody></table>
   </div>
 </main>
 <script>
@@ -77,26 +80,33 @@
       for (const w of r.winners) {
         const tr = document.createElement("tr");
         cell(tr, new Date(r.at).toLocaleString() + (r.manual ? " (manual)" : ""));
-        cell(tr, r.prize); cell(tr, w.name); cell(tr, w.email);
+        cell(tr, r.prize); cell(tr, w.name); cell(tr, w.code, "code"); tr.dataset.code = w.code;
         const st = cell(tr, ""); const tag = document.createElement("span"); tag.className = "tag " + w.status; tag.textContent = w.status; st.append(tag);
         const td = cell(tr, "");
-        if (w.status === "claimed") td.append(btn("Mark credits sent", "", () => act(() => api("/api/admin/mark-sent", { raffleId: r.id, playerId: w.playerId }))));
-        if (w.status === "sent") td.append(btn("Undo", "ghost", () => act(() => api("/api/admin/mark-sent", { raffleId: r.id, playerId: w.playerId, sent: false }))));
+        if (w.status === "unclaimed") td.append(btn("Mark prize given", "", () => act(() => api("/api/admin/mark-given", { raffleId: r.id, playerId: w.playerId }))));
+        if (w.status === "given") td.append(btn("Undo", "ghost", () => act(() => api("/api/admin/mark-given", { raffleId: r.id, playerId: w.playerId, given: false }))));
         wins.append(tr);
       }
     }
     if (!s.raffles.length) { const tr = document.createElement("tr"); cell(tr, "No raffles drawn yet.", "dim").colSpan = 6; wins.append(tr); }
 
+    filterCodes();
     $("pc").textContent = s.players.length;
     const pl = $("players"); pl.textContent = "";
     for (const p of s.players.sort((a, b) => b.xp - a.xp)) {
       const tr = document.createElement("tr");
-      cell(tr, p.name); cell(tr, p.email); cell(tr, p.level); cell(tr, p.tickets); cell(tr, p.done); cell(tr, p.status, "dim");
-      cell(tr, "").append(btn("Remove", "warn", () => { if (confirm(`Remove ${p.name} (${p.email}) from the game? This cannot be undone.`)) act(() => api("/api/admin/remove-player", { playerId: p.id })); }));
+      cell(tr, p.name); cell(tr, p.level); cell(tr, p.tickets); cell(tr, p.done); cell(tr, p.status, "dim");
+      cell(tr, "").append(btn("Remove", "warn", () => { if (confirm(`Remove ${p.name} from the game? This cannot be undone.`)) act(() => api("/api/admin/remove-player", { playerId: p.id })); }));
       pl.append(tr);
     }
   }
 
+  // Staff type the code a winner shows them; only matching rows stay visible.
+  function filterCodes() {
+    const q = $("find").value.trim().toUpperCase();
+    for (const tr of $("wins").children) tr.classList.toggle("miss", !!q && !(tr.dataset.code || "").startsWith(q));
+  }
+  $("find").oninput = filterCodes;
   $("enter").onclick = () => { token = $("tok").value.trim(); load(); };
   $("tok").onkeydown = (e) => { if (e.key === "Enter") $("enter").onclick(); };
   $("refresh").onclick = load;

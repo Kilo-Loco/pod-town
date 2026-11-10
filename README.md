@@ -66,10 +66,13 @@ what happened. Up to three activities can be queued in one prompt.
 
 - Draws automatically at the top of each hour (and on demand from `/admin`).
 - Odds are weighted by tickets earned that hour; tickets reset after each draw.
-- By default each person can win once (`RAFFLE_ONE_WIN`).
-- The winner sees a Claim button on their phone. Claimed prizes show in `/admin`,
-  where you download the CSV, send the credits yourself, and mark them sent.
-  Nothing is emailed automatically.
+- By default each character can win once (`RAFFLE_ONE_WIN`). Nothing stops one
+  person making several characters, so enforce one prize per person at the booth.
+- The game collects no email or other contact details. A winner's phone shows a
+  six-character claim code. They show it at the booth; staff look the code up in
+  `/admin`, hand over the prize, and mark it given.
+- Codes can be collected for `CLAIM_HOURS` after the draw (staff can still mark a
+  late one given).
 
 ## Prompt AI
 
@@ -90,4 +93,4 @@ bubble, which is length-capped and word-filtered before it reaches the screen.
 - `game/sim.js`: characters, activities, rewards, raffle
 - `game/llm.js`: prompt to activities (LLM with keyword fallback)
 - `public/`: big screen (`display.*`), phone (`play.html`), admin, pixel art
-- `data/state.json`: saved game (players, emails, raffle history). Back it up; do not commit it.
+- `data/state.json`: saved game (players and raffle history; no contact details). Back it up; do not commit it.
