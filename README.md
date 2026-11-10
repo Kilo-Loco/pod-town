@@ -68,6 +68,7 @@ with an empty town.
 | Problem | Fix |
 | --- | --- |
 | Screen says "Connecting" or "Reconnecting" | Check the Pod is running, then wait a minute. |
+| Deploy fails with "no instances available" | Pick a specific region near the event and deploy again. |
 | "Not found" just after starting | Still starting. Reload in 30 seconds. |
 | Town is empty after a restart | The network volume wasn't attached. |
 | Forgot the admin password | Terminate the Pod and deploy again (this also clears the town), or set `ADMIN_TOKEN` on the Pod. |
@@ -83,5 +84,7 @@ Run locally with [Deno](https://deno.com) 2.x: `deno task demo` (30x speed) or
 
 Pushing to `main` builds `ghcr.io/<owner>/pod-town:latest` for testing. To
 release, push a version tag (`git tag v1.0.1 && git push --tags`) and point the
-template's container image at that version. Code: `server.js` (server and APIs), `game/` (map, activities, raffle,
-prompt parsing), `public/` (big screen, phone and admin pages).
+template's container image at that version.
+
+Code: `server.js` (server and APIs), `game/` (map, activities, raffle, prompt
+parsing), `public/` (big screen, phone and admin pages).
