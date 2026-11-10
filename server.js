@@ -45,6 +45,8 @@ const PUBLIC_URL = (env("PUBLIC_URL", "") || defaultUrl).replace(/\/$/, "");
 const JOIN_URL = PUBLIC_URL + "/play";
 
 // ---- state ----
+// Make sure the folder for the save file exists (e.g. a freshly attached volume).
+await Deno.mkdir(DATA_FILE.replace(/\/[^/]*$/, "") || "/", { recursive: true });
 let saved = null;
 try {
   saved = JSON.parse(await Deno.readTextFile(DATA_FILE));

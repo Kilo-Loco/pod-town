@@ -9,9 +9,10 @@ COPY public ./public
 # Download dependencies at build time so the container starts offline and fast.
 RUN deno cache server.js
 
-# The save file lives on a mounted volume so it survives restarts.
+# The save file goes on the Pod's network volume, which Runpod mounts at
+# /workspace by default, so it survives restarts.
 ENV PORT=8080 \
-    DATA_FILE=/data/state.json
+    DATA_FILE=/workspace/pod-town/state.json
 EXPOSE 8080
 
 CMD ["deno", "run", "--allow-net", "--allow-read", "--allow-write", "--allow-env", "--allow-sys", "server.js"]
