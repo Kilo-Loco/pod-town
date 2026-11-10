@@ -18,13 +18,22 @@
     // Narrow or portrait windows stack the sidebar under the map (see the
     // matching media query in display.html), so the map gets the full width.
     const stacked = window.matchMedia(STACKED).matches;
-    // otherwise leave room for the narrowest sidebar (260px) plus gaps and borders
-    const availW = window.innerWidth - (stacked ? 36 : 320);
-    const availH = stacked ? Infinity : window.innerHeight - 36;
-    const s = Math.min(availW / (init.w * TS), availH / (init.h * TS));
-    scale = s >= 1 ? Math.floor(s) : Math.max(0.25, s);
-    canvas.width = init.w * TS * scale;
-    canvas.height = init.h * TS * scale;
+    // The town is the main attraction: give it every pixel the slim sidebar
+    // doesn't need. CHROME is the page padding, the gap and the stage border.
+    const CHROME = 8 * 2 + 4;
+    const side = stacked ? 0 : Math.round(Math.max(230, Math.min(340, window.innerWidth * 0.16)));
+    $("side").style.width = stacked ? "" : side + "px";
+    const availW = window.innerWidth - CHROME - (stacked ? 0 : side + 8);
+    const availH = stacked ? Infinity : window.innerHeight - CHROME;
+    const fit = Math.max(0.25, Math.min(availW / (init.w * TS), availH / (init.h * TS)));
+    const cssW = Math.floor(init.w * TS * fit), cssH = Math.floor(init.h * TS * fit);
+    // Draw at the screen's real pixel density so a non-whole zoom still looks sharp.
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    scale = (cssW * dpr) / (init.w * TS);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
   }
   window.addEventListener("resize", resize);
 

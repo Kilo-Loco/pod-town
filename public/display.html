@@ -8,16 +8,16 @@
   :root { --bg: #000010; --panel: #0b052b; --line: #210e5e; --ink: #ffffff; --dim: #b3b3c0; --pop: #874BFF; --gold: #FCB1FF; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; overflow: hidden; }
-  #wrap { display: flex; height: 100vh; align-items: center; justify-content: center; gap: 16px; padding: 12px; }
-  #stage { position: relative; flex: none; line-height: 0; border: 4px solid var(--line); border-radius: 6px; background: #000; }
+  #wrap { display: flex; height: 100vh; align-items: center; justify-content: center; gap: 8px; padding: 8px; }
+  #stage { position: relative; flex: none; line-height: 0; border: 2px solid var(--line); border-radius: 4px; background: #000; }
   canvas { image-rendering: pixelated; display: block; }
-  #side { flex: 1 1 0; min-width: 260px; max-width: 460px; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+  #side { flex: none; width: 300px; height: 100%; display: flex; flex-direction: column; gap: 8px; }
   .card { background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 10px 12px; }
   h1 { margin: 0; font-size: clamp(22px, 2.4vw, 40px); letter-spacing: 3px; color: var(--pop); text-shadow: 3px 3px 0 #000; }
   h2 { margin: 0 0 6px; font-size: clamp(11px, 1vw, 15px); letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
   .sub { color: var(--dim); font-size: clamp(11px, 1vw, 15px); margin-top: 2px; }
-  #join { display: flex; gap: 12px; align-items: center; }
-  #join img { width: clamp(96px, 9vw, 170px); height: auto; background: #fff; padding: 6px; border-radius: 4px; flex: none; }
+  #join { display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; }
+  #join img { width: 100%; max-width: 240px; height: auto; background: #fff; padding: 6px; border-radius: 4px; flex: none; }
   #join b { font-size: clamp(15px, 1.5vw, 24px); color: var(--gold); display: block; margin-bottom: 4px; }
   #join span { font-size: clamp(11px, 0.95vw, 15px); color: var(--dim); word-break: break-all; }
   #count { font-size: clamp(26px, 3vw, 52px); color: var(--gold); font-weight: bold; text-shadow: 3px 3px 0 #000; }
@@ -38,7 +38,7 @@
   @media (max-width: 1000px), (orientation: portrait) {
     html, body { height: auto; overflow: auto; }
     #wrap { flex-direction: column; height: auto; }
-    #side { flex: none; width: 100%; max-width: 768px; height: auto; }
+    #side { flex: none; width: 100% !important; max-width: 768px; height: auto; }
     #feedcard { flex: none; }
   }
 </style>
