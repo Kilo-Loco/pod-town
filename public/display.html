@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pod Town</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg: #000010; --panel: #0b052b; --line: #210e5e; --ink: #ffffff; --dim: #b3b3c0; --pop: #874BFF; --gold: #FCB1FF; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; overflow: hidden; }
+  #wrap { display: flex; height: 100vh; align-items: center; justify-content: center; gap: 16px; padding: 12px; }
+  #stage { position: relative; flex: none; line-height: 0; border: 4px solid var(--line); border-radius: 6px; background: #000; }
+  canvas { image-rendering: pixelated; display: block; }
+  #side { flex: 1 1 0; min-width: 260px; max-width: 460px; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .card { background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+  h1 { margin: 0; font-size: clamp(22px, 2.4vw, 40px); letter-spacing: 3px; color: var(--pop); text-shadow: 3px 3px 0 #000; }
+  h2 { margin: 0 0 6px; font-size: clamp(11px, 1vw, 15px); letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+  .sub { color: var(--dim); font-size: clamp(11px, 1vw, 15px); margin-top: 2px; }
+  #join { display: flex; gap: 12px; align-items: center; }
+  #join img { width: clamp(96px, 9vw, 170px); height: auto; background: #fff; padding: 6px; border-radius: 4px; flex: none; }
+  #join b { font-size: clamp(15px, 1.5vw, 24px); color: var(--gold); display: block; margin-bottom: 4px; }
+  #join span { font-size: clamp(11px, 0.95vw, 15px); color: var(--dim); word-break: break-all; }
+  #count { font-size: clamp(26px, 3vw, 52px); color: var(--gold); font-weight: bold; text-shadow: 3px 3px 0 #000; }
+  #prize { font-size: clamp(12px, 1.1vw, 17px); }
+  ol, ul { margin: 0; padding: 0; list-style: none; font-size: clamp(11px, 1vw, 16px); }
+  #board li { display: flex; justify-content: space-between; padding: 2px 0; }
+  #board li span:last-child { color: var(--dim); }
+  #feedcard { flex: 1 1 0; min-height: 0; overflow: hidden; }
+  #feed li { padding: 3px 0; border-bottom: 1px dashed var(--line); color: var(--ink); }
+  #feed li:last-child { border: 0; }
+  #overlay { position: absolute; inset: 0; background: rgba(0, 0, 16, 0.86); display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.3; z-index: 5; }
+  #overlay.on { display: flex; }
+  #overlay .t { font-size: clamp(20px, 3vw, 54px); color: var(--pop); letter-spacing: 6px; text-shadow: 4px 4px 0 #000; }
+  #overlay .n { font-size: clamp(32px, 6vw, 110px); color: var(--gold); font-weight: bold; text-shadow: 5px 5px 0 #000; margin: 12px 0; min-height: 1.3em; }
+  #overlay .p { font-size: clamp(14px, 1.8vw, 30px); color: var(--ink); }
+  #conn { position: absolute; left: 8px; top: 8px; background: #FF661A; color: #000010; padding: 4px 8px; font-size: 13px; line-height: 1.3; border-radius: 4px; display: none; z-index: 6; }
+  /* keep in sync with STACKED in display.js */
+  @media (max-width: 1000px), (orientation: portrait) {
+    html, body { height: auto; overflow: auto; }
+    #wrap { flex-direction: column; height: auto; }
+    #side { flex: none; width: 100%; max-width: 768px; height: auto; }
+    #feedcard { flex: none; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="conn">Reconnecting…</div>
+    <div id="overlay"><div class="t">★ RAFFLE TIME ★</div><div class="n" id="ovName"></div><div class="p" id="ovText"></div></div>
+  </div>
+  <div id="side">
+    <div class="card"><h1>POD TOWN</h1><div class="sub"><span id="pop">0</span> townsfolk · tell your character what to do</div></div>
+    <div class="card" id="join"><img id="qr" src="/api/qr.svg" alt="QR code to join"><div><b>Scan to join!</b><span id="joinUrl"></span></div></div>
+    <div class="card"><h2>Next raffle</h2><div id="count">--:--</div><div id="prize"></div><div class="sub" id="lastWin"></div></div>
+    <div class="card"><h2>Top townsfolk</h2><ol id="board"></ol></div>
+    <div class="card" id="feedcard"><h2>Town news</h2><ul id="feed"></ul></div>
+  </div>
+</div>
+<script src="/art.js"></script>
+<script src="/display.js"></script>
+</body>
+</html>

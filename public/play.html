@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pod Town</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000010">
+<style>
+  :root { --bg: #000010; --panel: #0b052b; --line: #210e5e; --ink: #ffffff; --dim: #b3b3c0; --pop: #874BFF; --gold: #FCB1FF; --bad: #FF661A; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; -webkit-text-size-adjust: 100%; }
+  main { max-width: 520px; margin: 0 auto; padding: 14px 14px 40px; }
+  h1 { margin: 4px 0 2px; font-size: 28px; letter-spacing: 3px; color: var(--pop); text-shadow: 3px 3px 0 #000; }
+  h2 { margin: 0 0 8px; font-size: 13px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+  p { margin: 6px 0; }
+  .dim { color: var(--dim); font-size: 13px; }
+  .card { background: var(--panel); border: 3px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 12px; }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 10px 0 4px; }
+  input[type=text], input[type=email], textarea { width: 100%; padding: 12px; font: inherit; color: var(--ink); background: #000010; border: 2px solid var(--line); border-radius: 6px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--pop); }
+  button { font: inherit; font-weight: bold; color: #fff; background: #5D29F0; border: 0; border-bottom: 4px solid #3d14b8; border-radius: 6px; padding: 12px 14px; cursor: pointer; touch-action: manipulation; }
+  button:active { transform: translateY(2px); border-bottom-width: 2px; }
+  button:disabled { opacity: 0.5; }
+  button.big { width: 100%; font-size: 18px; margin-top: 14px; }
+  button.ghost { background: #170a48; border-bottom-color: #0b052b; color: var(--ink); font-weight: normal; }
+  button.gold { background: #FCB1FF; border-bottom-color: #D58EFF; color: #000010; }
+  .err { color: var(--bad); min-height: 1.4em; margin-top: 8px; font-size: 14px; }
+  canvas { image-rendering: pixelated; }
+  #creator { display: flex; gap: 12px; align-items: center; }
+  #preview { width: 128px; height: 128px; background: #9bd45c; border: 3px solid var(--line); border-radius: 6px; flex: none; }
+  .opts { flex: 1; display: grid; gap: 6px; }
+  .opt { display: flex; align-items: center; gap: 6px; }
+  .opt span { flex: 1; text-align: center; font-size: 13px; }
+  .opt button { padding: 6px 12px; }
+  .consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 13px; color: var(--dim); }
+  .consent input { width: 22px; height: 22px; flex: none; margin: 0; }
+  #head { display: flex; gap: 12px; align-items: center; }
+  #me { width: 64px; height: 64px; background: #9bd45c; border: 3px solid var(--line); border-radius: 6px; flex: none; }
+  #head b { font-size: 20px; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--dim); }
+  .stats span b { color: var(--gold); font-size: 14px; }
+  .bar { height: 12px; background: #000010; border: 2px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 8px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.5s linear; }
+  #status { font-size: 17px; }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  .row textarea { flex: 1; resize: none; height: 52px; }
+  .chips { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+  .chips button { padding: 10px 4px; font-size: 13px; }
+  .chips small { display: block; color: var(--dim); font-weight: normal; font-size: 11px; }
+  #reply { min-height: 1.4em; margin-top: 8px; color: var(--gold); font-size: 14px; }
+  ul { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+  li { padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  li:last-child { border: 0; }
+  #win { border-color: var(--gold); display: none; }
+  #win h2 { color: var(--gold); }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>POD TOWN</h1>
+
+  <!-- join -->
+  <section id="join" class="hide">
+    <p class="dim">Make a character, send it around town, and earn tickets for the hourly raffle.</p>
+    <div class="card">
+      <h2>Your character</h2>
+      <div id="creator">
+        <canvas id="preview" width="16" height="16"></canvas>
+        <div class="opts" id="opts"></div>
+      </div>
+      <button class="ghost" id="shuffle" style="margin-top:10px;width:100%">🎲 Randomize</button>
+    </div>
+    <div class="card">
+      <label for="name">Character name (shown on the big screen)</label>
+      <input id="name" type="text" maxlength="12" autocomplete="nickname" autocapitalize="words" placeholder="2-12 letters">
+      <label for="email">Email (only used to send raffle prizes)</label>
+      <input id="email" type="email" maxlength="120" autocomplete="email" inputmode="email" placeholder="you@example.com">
+      <div class="consent"><input id="consent" type="checkbox"><label for="consent" style="margin:0">I agree that Runpod may email me about raffle prizes I win in this game.</label></div>
+      <div class="err" id="joinErr"></div>
+      <button class="big" id="go">Move into town</button>
+    </div>
+  </section>
+
+  <!-- game -->
+  <section id="game" class="hide">
+    <div class="card" id="head">
+      <canvas id="me" width="16" height="16"></canvas>
+      <div>
+        <b id="pname"></b>
+        <div class="stats"><span>Lv <b id="lv"></b></span><span>🪙 <b id="coins"></b></span><span>🎟 <b id="tix"></b></span></div>
+        <div class="dim" id="xp"></div>
+      </div>
+    </div>
+
+    <div class="card" id="win">
+      <h2>★ You won the raffle! ★</h2>
+      <p id="winText"></p>
+      <button class="big gold" id="claim">Claim my prize</button>
+      <div class="err" id="claimErr"></div>
+    </div>
+
+    <div class="card">
+      <h2>Right now</h2>
+      <div id="status"></div>
+      <div class="bar" id="barWrap"><i id="bar"></i></div>
+      <div class="dim" id="timeLeft"></div>
+      <div class="dim" id="queue"></div>
+    </div>
+
+    <div class="card">
+      <h2>Tell your character what to do</h2>
+      <div class="row">
+        <textarea id="prompt" maxlength="200" placeholder="e.g. train a model, then fish for data"></textarea>
+        <button id="send">Go</button>
+      </div>
+      <div id="reply"></div>
+      <div class="chips" id="chips"></div>
+      <button class="ghost" id="stop" style="width:100%;margin-top:8px">✋ Stop and wander</button>
+    </div>
+
+    <div class="card">
+      <h2>Next raffle in <span id="count">--:--</span></h2>
+      <p class="dim">Prize: <span id="prize"></span>. Each finished activity earns tickets; more tickets, better odds. Tickets reset every hour.</p>
+    </div>
+
+    <div class="card"><h2>Diary</h2><ul id="log"></ul></div>
+    <div class="card"><h2>Collection</h2><ul id="coll"></ul></div>
+
+    <div class="card">
+      <h2>Change outfit</h2>
+      <div class="opts" id="opts2"></div>
+      <p class="dim">Unlock more accessories at the Swag Shop (25 coins each).</p>
+    </div>
+    <p class="dim" id="who" style="text-align:center;margin-top:16px"></p>
+  </section>
+</main>
+
+<script src="/art.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const KEY = "podtown-token";
+  const rnd = (n) => Math.floor(Math.random() * n);
+  let token = null;
+  try { token = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+  let me = null, offset = 0, busy = false;
+  let look = { skin: rnd(4), hair: rnd(6), hairColor: rnd(6), shirt: rnd(8), pants: rnd(4), acc: "none" };
+
+  async function api(path, data) {
+    const res = await fetch(path, {
+      method: data ? "POST" : "GET",
+      headers: { "content-type": "application/json", ...(token ? { "x-token": token } : {}) },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(out.error || "Something went wrong."); e.status = res.status; throw e; }
+    return out;
+  }
+
+  function paint(canvas, lk) {
+    const c = canvas.getContext("2d");
+    c.clearRect(0, 0, 16, 16);
+    c.fillStyle = "#9bd45c"; c.fillRect(0, 0, 16, 16);
+    Art.drawSprite(c, 0, 0, lk, 0, 0);
+  }
+
+  // ----- outfit pickers (used by both join and in-game) -----
+  function buildOpts(el, accs, onChange) {
+    const defs = [
+      ["Skin", "skin", Art.SKIN.length, (i) => "Tone " + (i + 1)],
+      ["Hair", "hair", Art.HAIRS.length, (i) => Art.HAIRS[i]],
+      ["Hair color", "hairColor", Art.HAIRC.length, (i) => "Color " + (i + 1)],
+      ["Shirt", "shirt", Art.SHIRT.length, (i) => "Color " + (i + 1)],
+      ["Pants", "pants", Art.PANTS.length, (i) => "Color " + (i + 1)],
+      ["Extra", "acc", accs.length, (i) => Art.ACCS[accs[i]] || accs[i]],
+    ];
+    el.textContent = "";
+    for (const [title, key, n, nameOf] of defs) {
+      const row = document.createElement("div"); row.className = "opt";
+      const prev = document.createElement("button"); prev.className = "ghost"; prev.textContent = "◀"; prev.setAttribute("aria-label", "Previous " + title);
+      const next = document.createElement("button"); next.className = "ghost"; next.textContent = "▶"; next.setAttribute("aria-label", "Next " + title);
+      const text = document.createElement("span");
+      const idx = () => (key === "acc" ? Math.max(0, accs.indexOf(look.acc)) : look[key]);
+      const show = () => { text.textContent = title + ": " + nameOf(idx()); };
+      const move = (d) => {
+        const i = (idx() + d + n) % n;
+        look[key] = key === "acc" ? accs[i] : i;
+        show(); onChange();
+      };
+      prev.onclick = () => move(-1); next.onclick = () => move(1);
+      row.append(prev, text, next); el.append(row); show();
+    }
+  }
+
+  // ----- join -----
+  function showJoin() {
+    $("join").classList.remove("hide"); $("game").classList.add("hide");
+    const free = ["none", "glasses", "cap", "bow"];
+    const redraw = () => paint($("preview"), look);
+    const rebuild = () => { buildOpts($("opts"), free, redraw); redraw(); };
+    rebuild();
+    $("shuffle").onclick = () => {
+      look = { skin: rnd(4), hair: rnd(6), hairColor: rnd(6), shirt: rnd(8), pants: rnd(4), acc: free[rnd(free.length)] };
+      rebuild();
+    };
+    $("go").onclick = async () => {
+      $("joinErr").textContent = "";
+      $("go").disabled = true;
+      try {
+        const out = await api("/api/register", {
+          name: $("name").value, email: $("email").value, consent: $("consent").checked, look,
+        });
+        token = out.token;
+        try { localStorage.setItem(KEY, token); } catch (e) { /* keep in memory */ }
+        startGame(out.me);
+      } catch (e) {
+        $("joinErr").textContent = e.message;
+      } finally {
+        $("go").disabled = false;
+      }
+    };
+  }
+
+  // ----- game -----
+  let optsBuiltFor = "";
+  function render(m) {
+    me = m; offset = m.now - Date.now(); look = { ...m.look };
+    paint($("me"), m.look);
+    $("pname").textContent = m.name;
+    $("lv").textContent = m.level; $("coins").textContent = m.coins; $("tix").textContent = m.tickets;
+    $("xp").textContent = `${m.xp} / ${m.nextLevelXp} XP to next level` + (m.buff ? " · ☕ speedy" : "");
+    $("status").textContent = (m.act ? m.act.icon + " " : "") + m.status;
+    $("barWrap").classList.toggle("hide", !m.act);
+    $("queue").textContent = m.queue.length ? "Up next: " + m.queue.join(" → ") : "";
+    $("prize").textContent = m.prize;
+    $("who").textContent = "Prizes go to " + m.email;
+
+    if (!$("chips").children.length) {
+      for (const a of m.acts) {
+        const b = document.createElement("button"); b.className = "ghost";
+        b.textContent = a.icon + " " + a.short;
+        const s = document.createElement("small"); s.textContent = `${a.mins} min · 🎟${a.tickets}`;
+        b.append(s);
+        b.onclick = () => command({ steps: [a.id] });
+        $("chips").append(b);
+      }
+    }
+
+    const logEl = $("log"); logEl.textContent = "";
+    for (const e of m.log) { const li = document.createElement("li"); li.textContent = e.text; logEl.append(li); }
+    if (!m.log.length) { const li = document.createElement("li"); li.textContent = "Nothing yet. Send your character somewhere!"; logEl.append(li); }
+
+    const it = m.items, coll = $("coll"); coll.textContent = "";
+    const data = Object.entries(it.data).map(([k, v]) => `${k} ×${v}`).join(", ");
+    const rows = [
+      ["🎣 Datasets", data || "none yet"], ["📖 Papers read", `${it.books.length} / 12`],
+      ["🏋️ Models trained", it.models], ["🚀 Endpoints deployed", it.deploys], ["🌱 GPUs harvested", it.gpus],
+      ["🕹️ Best benchmark", it.bench ? it.bench.toLocaleString() : "none yet"], ["🏖️ Sandbox experiments", it.sand], ["📡 Connections", it.peers],
+    ];
+    for (const [k, v] of rows) { const li = document.createElement("li"); li.textContent = `${k}: ${v}`; coll.append(li); }
+
+    const key = m.unlocked.join(",");
+    if (key !== optsBuiltFor) {
+      optsBuiltFor = key;
+      buildOpts($("opts2"), m.unlocked, async () => {
+        paint($("me"), look);
+        try { await api("/api/look", { look }); } catch (e) { /* next poll resyncs */ }
+      });
+    }
+
+    const win = m.wins.find((w) => w.status === "unclaimed") || m.wins.find((w) => w.status === "claimed" || w.status === "sent");
+    $("win").style.display = win ? "block" : "none";
+    if (win) {
+      const pending = win.status === "unclaimed";
+      $("winText").textContent = pending
+        ? `You won ${win.prize}! Tap claim and we'll email it to ${m.email}.`
+        : `Claimed! ${win.prize} ${win.status === "sent" ? "has been sent" : "will be emailed"} to ${m.email}.`;
+      $("claim").classList.toggle("hide", !pending);
+      $("claim").onclick = async () => {
+        $("claim").disabled = true; $("claimErr").textContent = "";
+        try { render((await api("/api/claim", { raffleId: win.raffleId })).me); }
+        catch (e) { $("claimErr").textContent = e.message; }
+        finally { $("claim").disabled = false; }
+      };
+    }
+  }
+
+  function tickClock() {
+    if (!me) return;
+    const now = Date.now() + offset;
+    const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+    $("count").textContent = fmt(me.nextRaffle - now);
+    if (me.act) {
+      const prog = Math.max(0, Math.min(1, (now - me.act.start) / (me.act.end - me.act.start)));
+      $("bar").style.width = (prog * 100).toFixed(1) + "%";
+      $("timeLeft").textContent = fmt(me.act.end - now) + " left. Feel free to wander off and come back!";
+    } else {
+      $("timeLeft").textContent = "";
+    }
+  }
+
+  async function command(data) {
+    if (busy) return;
+    busy = true; $("send").disabled = true; $("reply").textContent = "Thinking…";
+    try {
+      const out = await api("/api/command", data);
+      $("reply").textContent = out.reply;
+      if (data.text && out.steps.length) $("prompt").value = "";
+      render(out.me);
+    } catch (e) {
+      $("reply").textContent = e.message;
+    } finally {
+      busy = false; $("send").disabled = false;
+    }
+  }
+
+  async function poll() {
+    if (!document.hidden && token) {
+      try { render(await api("/api/me")); }
+      catch (e) { if (e.status === 401) { try { localStorage.removeItem(KEY); } catch (x) { /* ignore */ } token = null; me = null; showJoin(); return; } }
+    }
+    setTimeout(poll, 2500);
+  }
+
+  function startGame(m) {
+    $("join").classList.add("hide"); $("game").classList.remove("hide");
+    render(m);
+    $("send").onclick = () => { const text = $("prompt").value.trim(); if (text) command({ text }); };
+    $("prompt").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").onclick(); } };
+    $("stop").onclick = () => command({ steps: ["stop"] });
+    setTimeout(poll, 2500);
+  }
+
+  setInterval(tickClock, 500);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && token && me) api("/api/me").then(render).catch(() => {}); });
+
+  if (token) {
+    api("/api/me").then(startGame).catch((e) => {
+      if (e.status === 401) { try { localStorage.removeItem(KEY); } catch (x) { /* ignore */ } token = null; }
+      showJoin();
+    });
+  } else {
+    showJoin();
+  }
+})();
+</script>
+</body>
+</html>

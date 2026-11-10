@@ -1,0 +1,7 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-sys --env-file=.env server.js",
+    "demo": "TIME_SCALE=30 deno run --allow-net --allow-read --allow-write --allow-env --allow-sys --env-file=.env server.js"
+  },
+  "nodeModulesDir": "none"
+}

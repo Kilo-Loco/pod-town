@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pod Town admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; background: #000010; color: #ffffff; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { color: #874BFF; letter-spacing: 2px; }
+  h2 { margin-top: 28px; font-size: 15px; color: #b3b3c0; text-transform: uppercase; letter-spacing: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #210e5e; vertical-align: top; }
+  th { color: #b3b3c0; font-weight: normal; }
+  button { font: inherit; color: #fff; background: #5D29F0; border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+  button.warn { background: #FF661A; color: #000010; }
+  button.ghost { background: #170a48; }
+  input { font: inherit; padding: 8px; background: #000010; color: #fff; border: 2px solid #210e5e; border-radius: 4px; width: 320px; max-width: 100%; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .tag { padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #000010; }
+  .unclaimed { background: #FFC01F; } .claimed { background: #43FFE3; } .sent { background: #41F420; }
+  .dim { color: #b3b3c0; }
+  #msg { color: #FCB1FF; min-height: 1.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>POD TOWN ADMIN</h1>
+  <div id="login" class="bar"><input id="tok" type="password" placeholder="Admin token" autocomplete="off"><button id="enter">Enter</button></div>
+  <div id="msg"></div>
+  <div id="app" style="display:none">
+    <div class="dim" id="info"></div>
+    <h2>Raffle winners</h2>
+    <div class="bar">
+      <button id="csv">Download winners CSV</button>
+      <button class="warn" id="draw">Draw a raffle now</button>
+      <button class="ghost" id="refresh">Refresh</button>
+    </div>
+    <table><thead><tr><th>Drawn</th><th>Prize</th><th>Winner</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody id="wins"></tbody></table>
+    <h2>Players (<span id="pc">0</span>)</h2>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Lv</th><th>Tickets</th><th>Done</th><th>Status</th><th></th></tr></thead><tbody id="players"></tbody></table>
+  </div>
+</main>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let token = sessionStorage.getItem("podtown-admin") || "";
+
+  async function api(path, data) {
+    const res = await fetch(path, {
+      method: data ? "POST" : "GET",
+      headers: { "content-type": "application/json", "x-admin-token": token },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Request failed");
+    return res;
+  }
+  const cell = (tr, text, cls) => { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; tr.append(td); return td; };
+  const btn = (text, cls, fn) => { const b = document.createElement("button"); b.textContent = text; if (cls) b.className = cls; b.onclick = fn; return b; };
+  const act = async (fn) => { try { $("msg").textContent = ""; await fn(); await load(); } catch (e) { $("msg").textContent = e.message; } };
+
+  async function load() {
+    let s;
+    try { s = await (await api("/api/admin/state")).json(); }
+    catch (e) { $("msg").textContent = e.message; $("app").style.display = "none"; $("login").style.display = "flex"; return; }
+    sessionStorage.setItem("podtown-admin", token);
+    $("login").style.display = "none"; $("app").style.display = "block";
+    $("info").textContent = `Join link: ${s.joinUrl} · Prize: ${s.prize} · Prompt AI: ${s.llm}`;
+
+    const wins = $("wins"); wins.textContent = "";
+    for (const r of s.raffles) {
+      if (!r.winners.length) {
+        const tr = document.createElement("tr");
+        cell(tr, new Date(r.at).toLocaleString()); cell(tr, r.prize); cell(tr, "(no entrants)", "dim"); cell(tr, ""); cell(tr, ""); cell(tr, "");
+        wins.append(tr);
+      }
+      for (const w of r.winners) {
+        const tr = document.createElement("tr");
+        cell(tr, new Date(r.at).toLocaleString() + (r.manual ? " (manual)" : ""));
+        cell(tr, r.prize); cell(tr, w.name); cell(tr, w.email);
+        const st = cell(tr, ""); const tag = document.createElement("span"); tag.className = "tag " + w.status; tag.textContent = w.status; st.append(tag);
+        const td = cell(tr, "");
+        if (w.status === "claimed") td.append(btn("Mark credits sent", "", () => act(() => api("/api/admin/mark-sent", { raffleId: r.id, playerId: w.playerId }))));
+        if (w.status === "sent") td.append(btn("Undo", "ghost", () => act(() => api("/api/admin/mark-sent", { raffleId: r.id, playerId: w.playerId, sent: false }))));
+        wins.append(tr);
+      }
+    }
+    if (!s.raffles.length) { const tr = document.createElement("tr"); cell(tr, "No raffles drawn yet.", "dim").colSpan = 6; wins.append(tr); }
+
+    $("pc").textContent = s.players.length;
+    const pl = $("players"); pl.textContent = "";
+    for (const p of s.players.sort((a, b) => b.xp - a.xp)) {
+      const tr = document.createElement("tr");
+      cell(tr, p.name); cell(tr, p.email); cell(tr, p.level); cell(tr, p.tickets); cell(tr, p.done); cell(tr, p.status, "dim");
+      cell(tr, "").append(btn("Remove", "warn", () => { if (confirm(`Remove ${p.name} (${p.email}) from the game? This cannot be undone.`)) act(() => api("/api/admin/remove-player", { playerId: p.id })); }));
+      pl.append(tr);
+    }
+  }
+
+  $("enter").onclick = () => { token = $("tok").value.trim(); load(); };
+  $("tok").onkeydown = (e) => { if (e.key === "Enter") $("enter").onclick(); };
+  $("refresh").onclick = load;
+  $("draw").onclick = () => { if (confirm("Draw a raffle right now? This picks a winner and resets everyone's tickets.")) act(() => api("/api/admin/draw", {})); };
+  $("csv").onclick = () => act(async () => {
+    const blob = await (await api("/api/admin/winners.csv")).blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "pod-town-winners.csv"; a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  if (token) load();
+  setInterval(() => { if ($("app").style.display === "block") load(); }, 15000);
+})();
+</script>
+</body>
+</html>
