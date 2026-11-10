@@ -38,6 +38,11 @@ This is where the game saves its progress, so a restart doesn't empty the town.
 
 A template remembers the game's settings so you don't retype them each event.
 
+A private template named **Pod Town** already exists in the Runpod account the
+game was first set up in. If you can see it under **Templates**, skip to step 3.
+It holds the raffle settings but deliberately no `ADMIN_TOKEN`; you add that
+when you deploy. To make the template in another account:
+
 1. Open **Templates** and click **New Template**.
 2. Fill in:
    - **Name**: `Pod Town`
@@ -55,7 +60,10 @@ A template remembers the game's settings so you don't retype them each event.
 3. Select the **network volume** from step 1. Leave its mount path as
    `/workspace`.
 4. Choose the **Pod Town** template.
-5. Deploy. The Pod is ready in under a minute.
+5. Add or change environment variables for this event (see
+   [Settings](#settings)). Always set `ADMIN_TOKEN`, and update `RAFFLE_PRIZE`
+   if the prize differs.
+6. Deploy. The Pod is ready in under a minute.
 
 Run **one Pod only**. The town lives in that one server's memory, so a second
 Pod would be a second, separate town.
