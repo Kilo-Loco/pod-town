@@ -200,7 +200,7 @@
     const fs = Math.max(7, Math.round(5.5 * scale));
     for (const l of init.labels) {
       const n = inside[l.id];
-      label(l.name.toUpperCase() + (n ? `  ×${n}` : ""), l.x * u, (l.y + 0.55) * u, fs, "#fff", l.id === "lab" ? "#5D29F0" : "rgba(0,0,16,0.82)");
+      label(l.name.toUpperCase() + (n ? `  ×${n}` : ""), l.x * u, (l.y + 0.55) * u, fs, "#fff", "rgba(0,0,16,0.82)");
     }
 
     // name tags, activity icons, speech
