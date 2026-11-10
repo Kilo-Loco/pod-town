@@ -31,6 +31,19 @@ deno task start
 Phones must be able to reach the server. On shared Wi-Fi the default LAN
 address works; for a real event, host it behind HTTPS and set `PUBLIC_URL`.
 
+## Hosting on a Runpod CPU Pod
+
+Every push to `main` builds `ghcr.io/kilo-loco/pod-town:latest` (see
+`.github/workflows/image.yml`). The Pod runs that image with:
+
+- port `8080/http` exposed, which gives `https://<pod-id>-8080.proxy.runpod.net`
+- a network volume mounted at `/data` for the save file
+- `ADMIN_TOKEN` set as an environment variable (plus any raffle or LLM settings)
+
+`PUBLIC_URL` is worked out from the Pod ID automatically. Run exactly one Pod:
+the town lives in that server's memory. To ship a new version, push to `main`,
+wait for the build, then restart the Pod so it pulls the new image.
+
 ## How it plays
 
 | Activity | Place | Time | Tickets | Reward |
