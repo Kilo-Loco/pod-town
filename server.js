@@ -1,4 +1,4 @@
-// Pod Town server: static pages, player API, display WebSocket, admin API.
+// Pod Town server: static pages, player API, display feed, admin API.
 // Run: deno task start
 import QRCode from "npm:qrcode@1.5.4";
 import * as world from "./game/world.js";
@@ -75,24 +75,24 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
   Deno.addSignalListener(sig, async () => { sim.dirty = true; await save(); Deno.exit(0); });
 }
 
-// ---- display sockets ----
-const sockets = new Set();
-function broadcast(obj) {
-  const msg = JSON.stringify(obj);
-  for (const ws of sockets) {
-    if (ws.readyState === WebSocket.OPEN) { try { ws.send(msg); } catch { /* closing */ } }
-  }
-}
-sim.onRaffle = (r) => broadcast({ type: "raffle", ...r });
+// ---- display feed ----
+// The big screen polls plain HTTP rather than holding a WebSocket open:
+// proxies and browser shields sometimes stall WebSockets, and a stalled feed
+// leaves the public display blank. The snapshot is built once per tick and
+// served as a ready-made string, so each poll costs almost nothing.
+let lastRaffle = null;
+sim.onRaffle = (r) => { lastRaffle = { ...r, at: Date.now() }; };
 
-setInterval(() => {
+let stateMsg = "{}";
+function tick() {
   const now = Date.now();
   sim.tick(now);
-  if (sockets.size) broadcast(sim.snapshot(now));
-}, TICK_MS);
+  stateMsg = JSON.stringify({ ...sim.snapshot(now), raffle: lastRaffle });
+}
+tick();
+setInterval(tick, TICK_MS);
 
 const initMsg = JSON.stringify({
-  type: "init",
   w: world.W, h: world.H, grid: world.grid, buildings: world.BUILDINGS,
   labels: Object.entries(world.locs).map(([id, l]) => ({ id, name: l.name, indoor: l.indoor, ...l.label })),
   acts: Object.fromEntries(Object.entries(ACTS).map(([id, a]) => [id, { icon: a.icon, loc: a.loc }])),
@@ -157,19 +157,12 @@ async function handle(req) {
   const url = new URL(req.url);
   const path = url.pathname;
 
-  if (path === "/ws") {
-    if (req.headers.get("upgrade") !== "websocket") return fail(400, "websocket only");
-    const { socket, response } = Deno.upgradeWebSocket(req);
-    socket.onopen = () => { sockets.add(socket); socket.send(initMsg); socket.send(JSON.stringify(sim.snapshot(Date.now()))); };
-    socket.onclose = () => sockets.delete(socket);
-    socket.onerror = () => sockets.delete(socket);
-    return response;
-  }
-
   if (req.method === "GET") {
     if (path === "/") return staticFile("display.html");
     if (path === "/play") return staticFile("play.html");
     if (path === "/admin") return staticFile("admin.html");
+    if (path === "/api/world") return new Response(initMsg, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+    if (path === "/api/state") return new Response(stateMsg, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
     if (path === "/api/qr.svg") {
       const svg = await QRCode.toString(JOIN_URL, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
       return new Response(svg, { headers: { "content-type": MIME.svg } });

@@ -88,7 +88,7 @@ bubble, which is length-capped and word-filtered before it reaches the screen.
 
 ## Files
 
-- `server.js`: HTTP + WebSocket server, player and admin APIs, saving
+- `server.js`: HTTP server, player and admin APIs, big-screen feed, saving
 - `game/world.js`: map generation and pathfinding
 - `game/sim.js`: characters, activities, rewards, raffle
 - `game/llm.js`: prompt to activities (LLM with keyword fallback)

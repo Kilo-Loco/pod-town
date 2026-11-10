@@ -38,26 +38,39 @@
   window.addEventListener("resize", resize);
 
   // ---------- network ----------
-  function connect() {
-    const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-    ws.onopen = () => { $("conn").style.display = "none"; };
-    ws.onclose = () => { $("conn").style.display = "block"; setTimeout(connect, 1500); };
-    ws.onmessage = (ev) => {
-      const m = JSON.parse(ev.data);
-      if (m.type === "init") {
-        init = m;
+  // Plain HTTP polling (no WebSocket), so the screen works through any proxy.
+  let fails = 0, lastRaffleId; // undefined until the first successful poll
+  const banner = (text) => { $("conn").textContent = text || ""; $("conn").style.display = text ? "block" : "none"; };
+  async function getJSON(url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+  async function poll() {
+    try {
+      if (!init) {
+        const m = await getJSON("/api/world");
         bg = [bakeWorld(m, 0), bakeWorld(m, 1)];
+        init = m; // only once the map is ready to draw
         $("joinUrl").textContent = m.joinUrl.replace(/^https?:\/\//, "");
         $("prize").textContent = "Prize: " + m.prize;
-        $("qr").src = "/api/qr.svg?" + Date.now();
         resize();
-      } else if (m.type === "state") {
-        onState(m);
-      } else if (m.type === "raffle") {
-        showRaffle(m);
       }
-    };
+      const s = await getJSON("/api/state");
+      onState(s);
+      const id = s.raffle ? s.raffle.id : null;
+      // announce a draw once, and only if it just happened (not on page load)
+      if (lastRaffleId !== undefined && id && id !== lastRaffleId && s.now - s.raffle.at < 60000) showRaffle(s.raffle);
+      lastRaffleId = id;
+      fails = 0;
+      banner("");
+    } catch (e) {
+      if (++fails >= 3) banner(init ? "Reconnecting…" : "Connecting to Pod Town… (" + e.message + ")");
+    }
+    setTimeout(poll, init ? init.tickMs : 1000);
   }
+  // Never fail silently on a public screen: show script errors in the banner.
+  window.addEventListener("error", (e) => banner("Display error: " + e.message));
 
   function onState(m) {
     offset = m.now - Date.now();
@@ -101,7 +114,7 @@
       if (Date.now() - started > 5000) {
         clearInterval(raffleTimer);
         name.textContent = r.winners.join(" & ");
-        text.textContent = `wins ${r.prize}! Check your phone to claim it.`;
+        text.textContent = `wins ${r.prize}! Check your phone for your claim code.`;
         setTimeout(() => ov.classList.remove("on"), 25000);
       }
     }, 90);
@@ -223,6 +236,6 @@
     $("count").textContent = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
   }
 
-  connect();
+  poll();
   requestAnimationFrame(frame);
 })();
