@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths-ignore: ["README.md", "docs/**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -20,13 +21,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # A version tag (v1.2.3) publishes :v1.2.3, which Pod templates should pin.
+      # A push to main publishes :latest for testing.
       - id: meta
-        run: echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+        run: |
+          repo="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tags=$repo:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=$repo:latest,$repo:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: |
-            ghcr.io/${{ steps.meta.outputs.repo }}:latest
-            ghcr.io/${{ steps.meta.outputs.repo }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}

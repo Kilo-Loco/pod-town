@@ -12,35 +12,39 @@ Players only choose a character name. No app, sign-up or personal data.
 
 ## Set up for an event
 
-You need a Runpod account with credits (about $1.50 a day) and 15 minutes.
+You need a Runpod account with credits (about $1.50 a day) and 10 minutes.
 Everything happens in the [Runpod console](https://console.runpod.io).
 
-1. **Create a network volume** under Storage: 10 GB, in a data center near the
-   event. This keeps the town if the Pod restarts.
-2. **Deploy a Pod** under Pods:
-   - Choose **CPU**, smallest size (2 vCPUs).
-   - Select the network volume. Leave its mount path as `/workspace`.
-   - Choose the **Pod Town** template (see below if you don't have it).
-   - Set the environment variable `ADMIN_TOKEN` to a long password of your own,
-     and change `RAFFLE_PRIZE` if needed.
-3. **Open the Pod's HTTP service on port 8080** (Connect button). That address,
-   `https://<pod-id>-8080.proxy.runpod.net`, is the big screen. Add `/admin` for
-   the staff page. The QR code on the big screen is the player link.
+1. **Deploy a Pod** under Pods: choose **CPU**, the smallest size, and the
+   **Pod Town** template. Deploy.
+2. **Open the Pod's HTTP service on port 8080** (Connect button). That address,
+   `https://<pod-id>-8080.proxy.runpod.net`, is the big screen. The QR code on
+   it is the player link.
+3. **Open `/admin` straight away and choose the admin password.** Whoever opens
+   it first sets the password, so don't leave this for later.
 4. **Rehearse:** join from a phone, send your character somewhere, then press
    **Draw a raffle now** on the admin page.
 
-Run one Pod only. To clear rehearsal data, delete the Pod and volume and repeat.
+Run one Pod only. To clear rehearsal data, terminate the Pod and deploy again.
 
-**No Pod Town template?** Under Templates, create one with container image
-`ghcr.io/kilo-loco/pod-town:latest`, container disk 5 GB, and HTTP port 8080.
+**Recommended for multi-day events: add a network volume.** Create one under
+Storage (10 GB, same region) and select it when deploying, leaving the mount
+path as `/workspace`. Without it, a Pod restart empties the town and resets the
+admin password, which you must then choose again at once.
+
+**No Pod Town template?** Under Templates, create one: compute type CPU,
+container image `ghcr.io/kilo-loco/pod-town:v1.0.0`, container disk 5 GB, HTTP
+port 8080. Leave everything else blank.
+
+Optional settings, as environment variables on the Pod or template:
 
 | Setting | What it does | Default |
 | --- | --- | --- |
-| `ADMIN_TOKEN` | Password for the admin page. Never share or commit it. | Random each start, shown in the Pod's logs |
 | `RAFFLE_PRIZE` | Prize text on the screen and phones | `$25 in Runpod Credits` |
 | `RAFFLE_WINNERS` | Winners per draw | `1` |
 | `RAFFLE_ONE_WIN` | `1` = a character can win only once | `1` |
 | `CLAIM_HOURS` | Hours a winner has to collect | `24` |
+| `ADMIN_TOKEN` | Fixes the admin password instead of choosing it on the page. Never share or commit it. | Not set |
 
 ## On the day
 
@@ -56,7 +60,8 @@ Run one Pod only. To clear rehearsal data, delete the Pod and volume and repeat.
 ## After the event
 
 Download the winners CSV from the admin page if you want a record, then
-terminate the Pod and delete the volume. The next event starts with an empty town.
+terminate the Pod and delete the volume if you made one. The next event starts
+with an empty town.
 
 ## Troubleshooting
 
@@ -65,7 +70,8 @@ terminate the Pod and delete the volume. The next event starts with an empty tow
 | Screen says "Connecting" or "Reconnecting" | Check the Pod is running, then wait a minute. |
 | "Not found" just after starting | Still starting. Reload in 30 seconds. |
 | Town is empty after a restart | The network volume wasn't attached. |
-| "Bad admin token" | Use the `ADMIN_TOKEN` value set on the Pod. |
+| Forgot the admin password | Terminate the Pod and deploy again (this also clears the town), or set `ADMIN_TOKEN` on the Pod. |
+| "Too many wrong passwords" | Wait a minute. The page locks after 10 wrong guesses. |
 
 Prize draws need published terms in many countries. Check with legal per event.
 
@@ -75,6 +81,7 @@ Run locally with [Deno](https://deno.com) 2.x: `deno task demo` (30x speed) or
 `deno task start`, then open `http://localhost:8080`. Local settings go in
 `.env` (copy `.env.example`); `.env` and `data/` are never committed.
 
-Pushing to `main` builds `ghcr.io/<owner>/pod-town:latest`; restart the Pod to
-pull it. Code: `server.js` (server and APIs), `game/` (map, activities, raffle,
+Pushing to `main` builds `ghcr.io/<owner>/pod-town:latest` for testing. To
+release, push a version tag (`git tag v1.0.1 && git push --tags`) and point the
+template's container image at that version. Code: `server.js` (server and APIs), `game/` (map, activities, raffle,
 prompt parsing), `public/` (big screen, phone and admin pages).

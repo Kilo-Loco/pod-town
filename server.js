@@ -24,12 +24,6 @@ const DATA_FILE = env("DATA_FILE", new URL("./data/state.json", import.meta.url)
 const MAX_PLAYERS = Number(env("MAX_PLAYERS", "2000"));
 const TICK_MS = 350;
 
-let ADMIN_TOKEN = env("ADMIN_TOKEN", "");
-if (!ADMIN_TOKEN) {
-  ADMIN_TOKEN = randomHex(12);
-  console.log(`[admin] ADMIN_TOKEN not set. Generated for this run: ${ADMIN_TOKEN}`);
-}
-
 function lanIp() {
   try {
     for (const i of Deno.networkInterfaces()) {
@@ -56,6 +50,46 @@ try {
 }
 const sim = new Sim(cfg, saved);
 
+// ---- admin sign-in ----
+// The admin page is protected in one of two ways:
+//  1. ADMIN_TOKEN is set: that value is the password.
+//  2. ADMIN_TOKEN is not set: the first person to open /admin chooses a
+//     password there. Only a salted hash of it is kept, in the save file.
+const ENV_ADMIN = env("ADMIN_TOKEN", "");
+let adminAuth = saved?.admin || null; // { salt, hash } once a password is chosen
+let verifiedPw = null; // a password already proven correct, kept in memory only
+let settingUp = false;
+const badLogins = []; // times of recent wrong passwords
+
+async function hashPassword(password, saltHex) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: enc.encode(saltHex), iterations: 150000 }, key, 256);
+  return Array.from(new Uint8Array(bits), (v) => v.toString(16).padStart(2, "0")).join("");
+}
+function sameText(a, b) { // comparison that takes the same time wherever the strings differ
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+/** Returns "ok", "bad" or "locked" (too many wrong guesses in the last minute). */
+async function checkAdmin(req) {
+  const given = req.headers.get("x-admin-token") || "";
+  if (given && ENV_ADMIN && sameText(given, ENV_ADMIN)) return "ok";
+  if (given && !ENV_ADMIN && verifiedPw !== null && sameText(given, verifiedPw)) return "ok";
+  const now = Date.now();
+  while (badLogins.length && now - badLogins[0] > 60000) badLogins.shift();
+  if (badLogins.length >= 10) return "locked";
+  if (given && !ENV_ADMIN && adminAuth && (await hashPassword(given, adminAuth.salt)) === adminAuth.hash) {
+    verifiedPw = given;
+    return "ok";
+  }
+  badLogins.push(now);
+  return "bad";
+}
+
 let saving = false;
 async function save() {
   if (!sim.dirty || saving) return;
@@ -63,7 +97,7 @@ async function save() {
   sim.dirty = false;
   try {
     const tmp = DATA_FILE + ".tmp";
-    await Deno.writeTextFile(tmp, JSON.stringify(sim.serialize()));
+    await Deno.writeTextFile(tmp, JSON.stringify({ ...sim.serialize(), admin: adminAuth }));
     await Deno.rename(tmp, DATA_FILE);
   } catch (e) {
     sim.dirty = true;
@@ -231,7 +265,31 @@ async function handle(req) {
 
   // --- admin API ---
   if (path.startsWith("/api/admin/")) {
-    if ((req.headers.get("x-admin-token") || "") !== ADMIN_TOKEN) return fail(401, "Bad admin token.");
+    const needsSetup = !ENV_ADMIN && !adminAuth;
+    if (path === "/api/admin/status" && req.method === "GET") return json({ needsSetup });
+    if (path === "/api/admin/setup" && req.method === "POST") {
+      if (!needsSetup || settingUp) return fail(409, "An admin password is already set.");
+      const password = String((await body(req)).password || "");
+      if (password.length < 10 || password.length > 200) return fail(400, "Use at least 10 characters.");
+      // re-check live state: another request may have finished setup while we read the body
+      if (adminAuth || settingUp) return fail(409, "An admin password is already set.");
+      settingUp = true;
+      try {
+        const salt = randomHex(16);
+        adminAuth = { salt, hash: await hashPassword(password, salt) };
+        verifiedPw = password;
+        sim.dirty = true;
+        await save();
+      } finally {
+        settingUp = false;
+      }
+      console.log("[admin] An admin password was set from the admin page.");
+      return json({ ok: true });
+    }
+    if (needsSetup) return fail(401, "Set an admin password first.");
+    const auth = await checkAdmin(req);
+    if (auth === "locked") return fail(429, "Too many wrong passwords. Wait a minute and try again.");
+    if (auth !== "ok") return fail(401, "Wrong admin password.");
 
     if (path === "/api/admin/state" && req.method === "GET") {
       return json({
@@ -287,6 +345,6 @@ Deno.serve({ port: PORT, hostname: "0.0.0.0", onListen: () => {} }, async (req) 
 console.log(`Pod Town is running.
   Big screen:  http://localhost:${PORT}/
   Players:     ${JOIN_URL}   (this is what the QR code points to)
-  Admin:       http://localhost:${PORT}/admin
+  Admin:       http://localhost:${PORT}/admin   (${ENV_ADMIN ? "password is ADMIN_TOKEN" : adminAuth ? "password already set" : "no password yet: the first visitor chooses it"})
   Prompt AI:   ${cfg.llmBaseUrl ? `${cfg.llmModel} @ ${cfg.llmBaseUrl}` : "keyword matching (set LLM_BASE_URL to use a Runpod endpoint)"}
   Time scale:  ${cfg.timeScale}x`);

@@ -28,7 +28,15 @@
 <body>
 <main>
   <h1>POD TOWN ADMIN</h1>
-  <div id="login" class="bar"><input id="tok" type="password" placeholder="Admin token" autocomplete="off"><button id="enter">Enter</button></div>
+  <div id="login" class="bar" style="display:none"><input id="tok" type="password" placeholder="Admin password" autocomplete="current-password"><button id="enter">Enter</button></div>
+  <div id="setup" style="display:none">
+    <p>Welcome! Choose an admin password for this event. Booth staff will use it to open this page. It can't be recovered, so note it somewhere safe.</p>
+    <div class="bar">
+      <input id="pw1" type="password" placeholder="New password (10+ characters)" autocomplete="new-password">
+      <input id="pw2" type="password" placeholder="Repeat password" autocomplete="new-password">
+      <button id="setpw">Set admin password</button>
+    </div>
+  </div>
   <div id="msg"></div>
   <div id="app" style="display:none">
     <div class="dim" id="info"></div>
@@ -65,7 +73,7 @@
   async function load() {
     let s;
     try { s = await (await api("/api/admin/state")).json(); }
-    catch (e) { $("msg").textContent = e.message; $("app").style.display = "none"; $("login").style.display = "flex"; return; }
+    catch (e) { if (token) $("msg").textContent = e.message; $("app").style.display = "none"; $("login").style.display = "flex"; return; }
     sessionStorage.setItem("podtown-admin", token);
     $("login").style.display = "none"; $("app").style.display = "block";
     $("info").textContent = `Join link: ${s.joinUrl} · Prize: ${s.prize} · Prompt AI: ${s.llm}`;
@@ -107,7 +115,20 @@
     for (const tr of $("wins").children) tr.classList.toggle("miss", !!q && !(tr.dataset.code || "").startsWith(q));
   }
   $("find").oninput = filterCodes;
-  $("enter").onclick = () => { token = $("tok").value.trim(); load(); };
+  $("enter").onclick = () => { token = $("tok").value; load(); };
+  $("setpw").onclick = async () => {
+    const pw = $("pw1").value;
+    if (pw !== $("pw2").value) { $("msg").textContent = "The two passwords don't match."; return; }
+    try {
+      $("msg").textContent = "";
+      token = "";
+      await api("/api/admin/setup", { password: pw });
+      token = pw;
+      $("setup").style.display = "none";
+      await load();
+    } catch (e) { $("msg").textContent = e.message; }
+  };
+  $("pw2").onkeydown = (e) => { if (e.key === "Enter") $("setpw").onclick(); };
   $("tok").onkeydown = (e) => { if (e.key === "Enter") $("enter").onclick(); };
   $("refresh").onclick = load;
   $("draw").onclick = () => { if (confirm("Draw a raffle right now? This picks a winner and resets everyone's tickets.")) act(() => api("/api/admin/draw", {})); };
@@ -117,7 +138,14 @@
     a.href = URL.createObjectURL(blob); a.download = "pod-town-winners.csv"; a.click();
     URL.revokeObjectURL(a.href);
   });
-  if (token) load();
+  // First visit on a fresh server: choose the password. Otherwise sign in.
+  (async () => {
+    let needsSetup = false;
+    try { needsSetup = (await (await fetch("/api/admin/status")).json()).needsSetup; } catch (e) { /* show sign-in */ }
+    if (needsSetup) { sessionStorage.removeItem("podtown-admin"); token = ""; $("setup").style.display = "block"; }
+    else if (token) load();
+    else $("login").style.display = "flex";
+  })();
   setInterval(() => { if ($("app").style.display === "block") load(); }, 15000);
 })();
 </script>
