@@ -50,6 +50,8 @@
   ul { margin: 0; padding: 0; list-style: none; font-size: 13px; }
   li { padding: 5px 0; border-bottom: 1px dashed var(--line); }
   li:last-child { border: 0; }
+  #map { display: block; width: 100%; aspect-ratio: 48 / 30; margin-top: 10px; background: #9bd45c; border: 2px solid var(--line); border-radius: 6px; }
+  #where { margin-top: 6px; }
   #win { border-color: var(--gold); display: none; }
   #win h2 { color: var(--gold); }
   .hide { display: none !important; }
@@ -103,6 +105,8 @@
       <div class="bar" id="barWrap"><i id="bar"></i></div>
       <div class="dim" id="timeLeft"></div>
       <div class="dim" id="queue"></div>
+      <canvas id="map" aria-label="Map of Pod Town showing where your character is"></canvas>
+      <div class="dim" id="where"></div>
       <button class="gold" id="findme" style="width:100%;margin-top:10px">📍 Find me on the big screen</button>
       <div class="dim" id="findmeMsg"></div>
     </div>
@@ -232,6 +236,7 @@
     $("status").textContent = (m.act ? m.act.icon + " " : "") + m.status;
     $("barWrap").classList.toggle("hide", !m.act);
     $("queue").textContent = m.queue.length ? "Up next: " + m.queue.join(" → ") : "";
+    $("where").textContent = m.pos ? describeWhere(m.pos) : "";
     $("prize").textContent = m.prize;
     $("who").textContent = "Your character is saved on this phone. Keep using this browser to come back to it.";
 
@@ -299,6 +304,92 @@
     }
   }
 
+  // ----- mini-map -----
+  // The whole town, drawn with the same art as the big screen, with only you
+  // marked on it, so it costs the same with 5 players or 500.
+  let world = null, townImg = null, mx = null, my = null;
+  async function loadMap() {
+    try {
+      world = await api("/api/world");
+      townImg = Art.bakeWorld(world, 0);
+    } catch (e) { setTimeout(loadMap, 3000); }
+  }
+
+  /** "top right", "center"...: where on the big screen to look, in thirds. */
+  function screenArea(x, y) {
+    const col = ["left", "", "right"][Math.min(2, Math.floor((x / world.w) * 3))];
+    const row = ["top", "", "bottom"][Math.min(2, Math.floor((y / world.h) * 3))];
+    return [row, col].filter(Boolean).join(" ") || "center";
+  }
+
+  function describeWhere(pos) {
+    if (!world) return "";
+    if (pos.inside) {
+      const b = world.buildings.find((x) => x.id === pos.loc);
+      if (b) return `You're inside ${b.id === "lab" ? "" : "the "}${b.name}, ${screenArea(b.x + b.w / 2, b.y + b.h / 2)} of the big screen.`;
+    }
+    // nearest place by distance to the area it covers, not to its sign
+    // (building signs sit on the roof, far from someone standing by the door)
+    let near = null, best = Infinity;
+    for (const l of world.labels) {
+      const a = l.box;
+      const d = Math.hypot(Math.max(a.x0 - pos.x, 0, pos.x - a.x1), Math.max(a.y0 - pos.y, 0, pos.y - a.y1));
+      if (d < best) { best = d; near = l; }
+    }
+    const place = (near.id === "lab" ? "" : "the ") + near.name; // same rule as the server's placeName
+    return `You're ${best <= 1 ? "at" : "near"} ${place}, ${screenArea(pos.x, pos.y)} of the big screen.`;
+  }
+
+  let lastFrame = 0;
+  function drawMap(t) {
+    requestAnimationFrame(drawMap);
+    const dt = Math.min(0.1, (t - lastFrame) / 1000);
+    lastFrame = t;
+    if (!townImg || !me || !me.pos || document.hidden) return;
+    const c = $("map");
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const W = Math.round(c.clientWidth * dpr), H = Math.round((W * world.h) / world.w);
+    if (!W) return;
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    const ctx = c.getContext("2d");
+    const u = W / world.w;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(townImg, 0, 0, W, H);
+    ctx.fillStyle = "rgba(0,0,16,0.3)"; // dim the town so your marker stands out
+    ctx.fillRect(0, 0, W, H);
+
+    // glide between polls (the phone only hears your position every 2.5s)
+    const pos = me.pos;
+    if (mx === null || Math.abs(pos.x - mx) + Math.abs(pos.y - my) > 12) { mx = pos.x; my = pos.y; }
+    const step = 3 * dt; // ~1 tile per 350ms, like the server
+    mx += Math.max(-step, Math.min(step, pos.x - mx));
+    my += Math.max(-step, Math.min(step, pos.y - my));
+
+    const ph = (t % 1200) / 1200;
+    if (pos.dest && !pos.inside) { // where you're headed: a dashed ring
+      ctx.setLineDash([u * 0.4, u * 0.3]);
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(1.5, u * 0.18);
+      ctx.beginPath(); ctx.arc((pos.dest.x + 0.5) * u, (pos.dest.y + 0.5) * u, u * 0.9, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    let cx, cy;
+    const b = pos.inside && world.buildings.find((x) => x.id === pos.loc);
+    if (b) { // inside: outline the whole building
+      cx = (b.x + b.w / 2) * u; cy = (b.y + b.h / 2) * u;
+      ctx.strokeStyle = `rgba(252,177,255,${0.6 + 0.4 * Math.sin(t / 250)})`;
+      ctx.lineWidth = Math.max(2, u * 0.3);
+      ctx.strokeRect(b.x * u, b.y * u, b.w * u, b.h * u);
+    } else {
+      cx = (mx + 0.5) * u; cy = (my + 0.5) * u;
+    }
+    ctx.strokeStyle = `rgba(252,177,255,${1 - ph})`;
+    ctx.lineWidth = Math.max(2, u * 0.25);
+    ctx.beginPath(); ctx.arc(cx, cy, u * (0.8 + ph * 2.6), 0, Math.PI * 2); ctx.stroke();
+    // your own character, drawn bigger than a tile so you can recognise it
+    const s = u * 2.2;
+    ctx.drawImage(Art.spriteSheet(me.look), 0, 0, 16, 16, Math.round(cx - s / 2), Math.round(cy - s * 0.6), Math.round(s), Math.round(s));
+  }
+
   async function command(data) {
     if (busy) return;
     busy = true; $("send").disabled = true; $("reply").textContent = "Thinking…";
@@ -322,9 +413,15 @@
     setTimeout(poll, 2500);
   }
 
+  let mapStarted = false;
   function startGame(m) {
     $("join").classList.add("hide"); $("game").classList.remove("hide");
     render(m);
+    if (!mapStarted) {
+      mapStarted = true;
+      loadMap().then(() => { if (me) $("where").textContent = describeWhere(me.pos); });
+      requestAnimationFrame(drawMap);
+    }
     $("send").onclick = () => { const text = $("prompt").value.trim(); if (text) command({ text }); };
     $("prompt").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").onclick(); } };
     $("stop").onclick = () => command({ steps: ["stop"] });
