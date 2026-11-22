@@ -13,12 +13,12 @@ const WALKABLE = new Set([T.GRASS, T.FLOWER, T.PATH, T.DOOR, T.PLAZA, T.SAND]);
 
 // dir: 0 down, 1 left, 2 right, 3 up
 export const BUILDINGS = [
-  { id: "library", name: "Library", x: 5, y: 3, w: 7, h: 6, color: "#c0504d" },
-  { id: "cafe", name: "Cache Cafe", x: 14, y: 4, w: 5, h: 5, color: "#d98e3a" },
-  { id: "arcade", name: "Benchmark Arcade", x: 29, y: 4, w: 5, h: 5, color: "#d94f9a" },
-  { id: "lab", name: "Runpod HQ", x: 36, y: 3, w: 8, h: 6, color: "#5D29F0" },
-  { id: "gym", name: "Training Gym", x: 13, y: 18, w: 6, h: 4, color: "#3f7fbf" },
-  { id: "market", name: "Swag Shop", x: 27, y: 18, w: 5, h: 4, color: "#3a9d6a" },
+  { id: "library", name: "Library", x: 3, y: 2, w: 7, h: 6, color: "#c0504d" },
+  { id: "cafe", name: "Cache Cafe", x: 13, y: 3, w: 5, h: 5, color: "#d98e3a" },
+  { id: "arcade", name: "Benchmark Arcade", x: 30, y: 3, w: 5, h: 5, color: "#d94f9a" },
+  { id: "lab", name: "Runpod HQ", x: 38, y: 2, w: 8, h: 6, color: "#5D29F0" },
+  { id: "gym", name: "Training Gym", x: 14, y: 19, w: 6, h: 4, color: "#3f7fbf" },
+  { id: "market", name: "Swag Shop", x: 28, y: 19, w: 5, h: 4, color: "#3a9d6a" },
 ];
 
 function mulberry32(a) {
@@ -38,22 +38,22 @@ function build() {
     for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) set(i, j, t);
   };
 
-  // forest border
+  // forest border, one tree thick
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (x < 2 || x >= W - 2 || y < 2 || y >= H - 2) g[y][x] = T.TREE;
+    if (x < 1 || x >= W - 1 || y < 1 || y >= H - 1) g[y][x] = T.TREE;
   }
 
   // roads
-  rect(2, 14, 44, 2, T.PATH); // main street
-  rect(23, 16, 2, 8, T.PATH); // south avenue
-  rect(16, 23, 14, 1, T.PATH); // south cross street
+  rect(1, 14, 46, 2, T.PATH); // main street
+  rect(23, 16, 2, 9, T.PATH); // south avenue
+  rect(17, 24, 14, 1, T.PATH); // south cross street
 
   // sandbox: a sand pit north of the plaza, with a short path up to it
-  rect(23, 8, 2, 3, T.PATH);
-  rect(21, 5, 6, 3, T.SAND);
+  rect(23, 7, 2, 4, T.PATH);
+  rect(21, 4, 6, 3, T.SAND);
   const sandSpots = [];
-  for (let y = 5; y <= 7; y++) for (let x = 21; x <= 26; x++) {
-    if (!(x === 26 && y === 5)) sandSpots.push({ x, y, dir: 0 }); // corner holds the sandcastle
+  for (let y = 4; y <= 6; y++) for (let x = 21; x <= 26; x++) {
+    if (!(x === 26 && y === 4)) sandSpots.push({ x, y, dir: 0 }); // corner holds the sandcastle
   }
 
   // plaza + fountain
@@ -77,41 +77,41 @@ function build() {
     };
   }
 
-  locs.sandbox = { name: "Sandbox", indoor: false, spots: sandSpots, label: { x: 24, y: 3.9 } };
+  locs.sandbox = { name: "Sandbox", indoor: false, spots: sandSpots, label: { x: 24, y: 2.9 } };
 
   // cafe patio
-  set(14, 10, T.TABLE); set(18, 10, T.TABLE);
+  set(13, 9, T.TABLE); set(17, 9, T.TABLE);
   locs.cafe.indoor = false;
   locs.cafe.spots = [
-    { x: 13, y: 10, dir: 2 }, { x: 15, y: 10, dir: 1 },
-    { x: 17, y: 10, dir: 2 }, { x: 19, y: 10, dir: 1 },
+    { x: 12, y: 9, dir: 2 }, { x: 14, y: 9, dir: 1 },
+    { x: 16, y: 9, dir: 2 }, { x: 18, y: 9, dir: 1 },
   ];
 
   // pond
-  const cx = 7.5, cy = 22.5, rx = 4.4, ry = 3.3;
+  const cx = 6.5, cy = 23.5, rx = 4.4, ry = 3.3;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const ex = (x + 0.5 - cx) / rx, ey = (y + 0.5 - cy) / ry;
     if (ex * ex + ey * ey <= 1) g[y][x] = T.WATER;
   }
 
   // garden
-  for (let x = 34; x <= 44; x++) { set(x, 18, T.FENCE); set(x, 26, T.FENCE); }
-  for (let y = 18; y <= 26; y++) { set(34, y, T.FENCE); set(44, y, T.FENCE); }
-  set(40, 18, T.PATH); set(40, 16, T.PATH); set(40, 17, T.PATH);
+  for (let x = 35; x <= 45; x++) { set(x, 19, T.FENCE); set(x, 27, T.FENCE); }
+  for (let y = 19; y <= 27; y++) { set(35, y, T.FENCE); set(45, y, T.FENCE); }
+  for (let y = 16; y <= 19; y++) set(41, y, T.PATH);
   const gardenSpots = [];
-  for (const row of [20, 22, 24]) {
-    for (let x = 36; x <= 42; x++) {
+  for (const row of [21, 23, 25]) {
+    for (let x = 37; x <= 43; x++) {
       set(x, row, T.SOIL);
       gardenSpots.push({ x, y: row + 1, dir: 3 });
     }
   }
-  locs.garden = { name: "GPU Farm", indoor: false, spots: gardenSpots, label: { x: 39.5, y: 18 } };
+  locs.garden = { name: "GPU Farm", indoor: false, spots: gardenSpots, label: { x: 40.5, y: 19 } };
 
   // decoration: flowers and lone trees (a lone tree surrounded by open grass
   // can never cut off a route)
   const rnd = mulberry32(20261109);
   const isOpen = (x, y) => inb(x, y) && (g[y][x] === T.GRASS || g[y][x] === T.FLOWER);
-  for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
     if (g[y][x] !== T.GRASS) continue;
     const r = rnd();
     if (r < 0.07) { g[y][x] = T.FLOWER; continue; }

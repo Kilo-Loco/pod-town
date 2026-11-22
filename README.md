@@ -45,6 +45,14 @@ Optional settings, as environment variables on the Pod or template:
 | `RAFFLE_ONE_WIN` | `1` = a character can win only once | `1` |
 | `CLAIM_HOURS` | Hours a winner has to collect | `24` |
 | `ADMIN_TOKEN` | Fixes the admin password instead of choosing it on the page. Never share or commit it. | Not set |
+| `TOWN_UPGRADES` | `auto` = the busiest place gets upgraded at each raffle, `manual` = only levels set on the admin page, `off` = no upgrades | `auto` |
+| `TOWN_STATUES` | `1` = each raffle winner gets a statue in the Plaza, `0` = no statues | `1` |
+| `RAFFLE_MINUTES` | Minutes between raffles. Use a small number (e.g. `2`) only for rehearsals and demos | `60` |
+
+Town upgrades and statues are decoration only and never change raffle odds.
+The **Town upgrades** section of the admin page can switch them off, set each
+place's level, or reset the town during the event. Changes made there override
+these settings and are kept until you press **Use event defaults**.
 
 ## On the day
 

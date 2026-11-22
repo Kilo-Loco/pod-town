@@ -125,6 +125,7 @@
     <div class="card">
       <h2>Next raffle in <span id="count">--:--</span></h2>
       <p class="dim">Prize: <span id="prize"></span>. Each finished activity earns tickets; more tickets, better odds. Tickets reset every hour.</p>
+      <p id="project" class="hide"></p>
     </div>
 
     <div class="card"><h2>Diary</h2><ul id="log"></ul></div>
@@ -238,6 +239,8 @@
     $("queue").textContent = m.queue.length ? "Up next: " + m.queue.join(" → ") : "";
     $("where").textContent = m.pos ? describeWhere(m.pos) : "";
     $("prize").textContent = m.prize;
+    $("project").classList.toggle("hide", !m.town);
+    if (m.town) $("project").textContent = projectText(m.town.leaders, m.town.mine || []);
     $("who").textContent = "Your character is saved on this phone. Keep using this browser to come back to it.";
 
     if (!$("chips").children.length) {
@@ -284,6 +287,20 @@
         ? `Show this code at the Runpod booth before ${new Date(win.claimBy).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} to collect your prize.`
         : "";
     }
+  }
+
+  // "Town project": the place where players earn the most tickets this hour
+  // gets upgraded on the big screen at the raffle.
+  function projectText(leaders, mine) {
+    const name = (id) => world?.labels.find((l) => l.id === id)?.name || id;
+    const intro = "🏗️ Town project: the busiest place gets upgraded at the raffle, and its builders get their names on the big screen. ";
+    if (!leaders.length) return intro + "Nobody has started yet, so your next activity takes the lead!";
+    const [a, b] = leaders;
+    const race = `${name(a[0])} leads with ${a[1]} 🎟` + (b ? `, then ${name(b[0])} with ${b[1]} 🎟.` : ".");
+    const you = mine.length
+      ? ` You've put ${mine[0][1]} 🎟 into ${name(mine[0][0])}` + (mine.length > 1 ? ` and some into ${mine.length - 1} other place${mine.length > 2 ? "s" : ""}.` : ".")
+      : "";
+    return intro + race + you;
   }
 
   function tickClock() {

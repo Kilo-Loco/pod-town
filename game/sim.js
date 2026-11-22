@@ -1,5 +1,6 @@
 // Authoritative town simulation: players, activities, rewards, hourly raffle.
 import * as world from "./world.js";
+import { Town } from "./town.js";
 
 export const ACTS = {
   train: { name: "Train a model at the Training Gym", short: "Train a model", loc: "gym", verb: "Training a model", icon: "🏋️", mins: 6, xp: 35, tickets: 2 },
@@ -71,6 +72,9 @@ const rid = (n = 16) => {
   return Array.from(b, (v) => v.toString(16).padStart(2, "0")).join("");
 };
 
+/** "Built by Ana, Bo, Cy + 9 others" for an upgrade's credit line. */
+export const builtBy = (up) => !up.by?.length ? "" :
+  "Built by " + up.by.join(", ") + (up.more ? ` + ${up.more} other${up.more > 1 ? "s" : ""}` : "");
 const placeName = (loc) => (loc === "lab" ? "" : "the ") + world.locs[loc].name;
 const newItems = () => ({ data: {}, books: [], models: 0, deploys: 0, gpus: 0, bench: 0, sand: 0, peers: 0 });
 /** Short code a winner shows at the booth. No look-alike characters (0/O, 1/I/L). */
@@ -107,7 +111,9 @@ export class Sim {
     }
     this.events = saved?.events || [];
     this.arcadeHigh = saved?.arcadeHigh || { score: 0, name: "" };
-    this.lastRaffleHour = Math.floor(Date.now() / 3600000); // never draw on boot
+    this.town = new Town(cfg.town || { mode: "auto", statues: true }, saved?.town);
+    this.raffleMs = (cfg.raffleMinutes || 60) * 60000;
+    this.lastRaffleHour = Math.floor(Date.now() / this.raffleMs); // never draw on boot
     this.dirty = false;
     this.onRaffle = null;
     for (const p of saved?.players || []) {
@@ -135,6 +141,7 @@ export class Sim {
       raffles: this.raffles,
       events: this.events.slice(-30),
       arcadeHigh: this.arcadeHigh,
+      town: this.town.serialize(),
     };
   }
 
@@ -221,7 +228,7 @@ export class Sim {
 
   tick(now) {
     for (const p of this.players.values()) this.stepPlayer(p, now);
-    const hour = Math.floor(now / 3600000);
+    const hour = Math.floor(now / this.raffleMs);
     if (hour !== this.lastRaffleHour) {
       this.lastRaffleHour = hour;
       this.draw(now);
@@ -255,7 +262,8 @@ export class Sim {
       p.nextWander = now + 5000 + Math.random() * 15000;
       const tx = p.x + Math.floor(Math.random() * 9) - 4;
       const ty = p.y + Math.floor(Math.random() * 9) - 4;
-      const path = world.walkable(tx, ty) && world.findPath(p.x, p.y, tx, ty);
+      // never idle on a doorstep: a character there is drawn over the building's front
+      const path = world.walkable(tx, ty) && world.grid[ty][tx] !== world.T.DOOR && world.findPath(p.x, p.y, tx, ty);
       if (path && path.length <= 8) p.path = path;
     }
   }
@@ -282,6 +290,7 @@ export class Sim {
     p.xp += a.xp;
     p.tickets += a.tickets;
     p.done++;
+    this.town.credit(a.loc, a.tickets, { id: p.id, name: p.name });
     const text = this.reward(p, id);
     this.event(`${p.name} ${text}`);
     this.logFor(p, `You ${text} (+${a.xp} XP, +${a.tickets} raffle ticket${a.tickets > 1 ? "s" : ""})`);
@@ -291,6 +300,8 @@ export class Sim {
       this.logFor(p, `Level up! You are now level ${after}.`);
     }
     p.nextWander = Date.now() + 3000;
+    // leaving a building: step off the doorstep onto the path below it
+    if (world.grid[p.y][p.x] === world.T.DOOR && world.walkable(p.x, p.y + 1)) p.path = [[p.x, p.y + 1]];
     this.dirty = true;
   }
 
@@ -399,8 +410,21 @@ export class Sim {
         ? `RAFFLE: ${winners.map((w) => w.name).join(", ")} won ${raffle.prize}!`
         : "RAFFLE: nobody entered this hour. Do an activity to earn tickets!",
     );
+    const first = winners.length && this.players.get(winners[0].playerId);
+    const built = this.town.onRaffle(now, first ? { name: first.name, look: first.look } : null);
+    let upgrade = null;
+    if (built) {
+      const { ids, ...shown } = built;
+      upgrade = shown;
+      const place = world.locs[built.loc].name;
+      this.event(`TOWN UPGRADE: ${built.name} for ${place}! ${builtBy(built)}`);
+      for (const id of ids) {
+        const p = this.players.get(id);
+        if (p) this.logFor(p, `🏗️ You helped build ${world.locs[built.loc].name}'s new ${built.name}! Take a look on the big screen.`);
+      }
+    }
     this.dirty = true;
-    if (this.onRaffle) this.onRaffle({ id: raffle.id, prize: raffle.prize, names, winners: winners.map((w) => w.name), entrants: pool.length });
+    if (this.onRaffle) this.onRaffle({ id: raffle.id, prize: raffle.prize, names, winners: winners.map((w) => w.name), entrants: pool.length, upgrade });
     return raffle;
   }
 
@@ -425,6 +449,10 @@ export class Sim {
     return "Wandering around town";
   }
 
+  nextRaffle(now) {
+    return (Math.floor(now / this.raffleMs) + 1) * this.raffleMs;
+  }
+
   snapshot(now) {
     const players = [];
     for (const p of this.players.values()) {
@@ -445,8 +473,9 @@ export class Sim {
     return {
       type: "state", now, players,
       events: this.events.slice(-9),
-      nextRaffle: (Math.floor(now / 3600000) + 1) * 3600000,
+      nextRaffle: this.nextRaffle(now),
       lastWinners: last ? last.winners.map((w) => w.name) : [],
+      town: this.town.feed(),
     };
   }
 }

@@ -4,6 +4,7 @@ import QRCode from "npm:qrcode@1.5.4";
 import * as world from "./game/world.js";
 import { ACTS, cleanLook, levelOf, Sim } from "./game/sim.js";
 import { interpret } from "./game/llm.js";
+import { MODES } from "./game/town.js";
 
 const env = (k, d) => Deno.env.get(k) ?? d;
 const randomHex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (v) => v.toString(16).padStart(2, "0")).join("");
@@ -15,10 +16,17 @@ const cfg = {
   raffleWinners: Math.max(1, Number(env("RAFFLE_WINNERS", "1"))),
   raffleOneWin: env("RAFFLE_ONE_WIN", "1") !== "0",
   claimHours: Number(env("CLAIM_HOURS", "24")),
+  // minutes between raffles; shorter than 60 is meant for rehearsals and demos
+  raffleMinutes: Math.max(1, Number(env("RAFFLE_MINUTES", "60")) || 60),
   llmBaseUrl: env("LLM_BASE_URL", ""),
   llmApiKey: env("LLM_API_KEY", ""),
   llmModel: env("LLM_MODEL", ""),
   llmTimeoutMs: Number(env("LLM_TIMEOUT_MS", "10000")),
+  // starting settings for town upgrades; the admin page can change them
+  town: {
+    mode: MODES.includes(env("TOWN_UPGRADES", "auto")) ? env("TOWN_UPGRADES", "auto") : "auto",
+    statues: env("TOWN_STATUES", "1") !== "0",
+  },
 };
 const DATA_FILE = env("DATA_FILE", new URL("./data/state.json", import.meta.url).pathname);
 const MAX_PLAYERS = Number(env("MAX_PLAYERS", "2000"));
@@ -140,7 +148,7 @@ const initMsg = JSON.stringify({
   w: world.W, h: world.H, grid: world.grid, buildings: world.BUILDINGS,
   labels: Object.entries(world.locs).map(([id, l]) => ({ id, name: l.name, indoor: l.indoor, ...l.label, box: areaOf(id, l) })),
   acts: Object.fromEntries(Object.entries(ACTS).map(([id, a]) => [id, { icon: a.icon, loc: a.loc }])),
-  tickMs: TICK_MS, joinUrl: JOIN_URL, prize: cfg.rafflePrize,
+  tickMs: TICK_MS, joinUrl: JOIN_URL, prize: cfg.rafflePrize, raffleMs: sim.raffleMs,
 });
 
 // ---- helpers ----
@@ -189,8 +197,9 @@ function meView(p) {
     queue: [...(p.goal && !p.act ? [p.goal.act] : []), ...p.queue].map((id) => ACTS[id].short),
     items: p.items, log: p.log.slice(-8).reverse(),
     wins: sim.winsFor(p),
-    nextRaffle: (Math.floor(now / 3600000) + 1) * 3600000,
+    nextRaffle: sim.nextRaffle(now),
     prize: cfg.rafflePrize,
+    town: sim.town.project(p.id),
     acts: Object.entries(ACTS).map(([id, a]) => ({ id, short: a.short, icon: a.icon, mins: Math.max(1, Math.round(a.mins / cfg.timeScale * 10) / 10), tickets: a.tickets })),
   };
 }
@@ -320,6 +329,7 @@ async function handle(req) {
           tickets: p.tickets, done: p.done, status: sim.statusOf(p), lastSeen: p.lastSeen,
         })),
         raffles: sim.raffles.slice().reverse(),
+        town: sim.town.adminView(),
       });
     }
     if (path === "/api/admin/winners.csv" && req.method === "GET") {
@@ -342,6 +352,12 @@ async function handle(req) {
         w.givenAt = b.given === false ? null : Date.now();
         sim.dirty = true;
         return json({ ok: true });
+      }
+      if (path === "/api/admin/town") {
+        const err = sim.town.apply(b);
+        if (err) return fail(400, err);
+        sim.dirty = true;
+        return json({ town: sim.town.adminView() });
       }
       if (path === "/api/admin/remove-player") {
         return sim.removePlayer(String(b.playerId || "")) ? json({ ok: true }) : fail(404, "Player not found.");
