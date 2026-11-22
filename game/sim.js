@@ -19,6 +19,10 @@ export const LOOK_LIMITS = { skin: 4, hair: 6, hairColor: 6, shirt: 8, pants: 4 
 export const ACCS = ["none", "glasses", "cap", "bow", "headphones", "crown", "wizard", "halo"];
 export const FREE_ACCS = ["none", "glasses", "cap", "bow"];
 const SHOP_PRICE = 25;
+// "Find me": how long a player is highlighted on the big screen, and how often
+// they may ask. The cooldown keeps a crowd from turning the screen into arrows.
+export const PING_MS = 6000;
+export const PING_COOLDOWN_MS = 15000;
 
 const DATASETS = [
   ["a tidy CSV", 38, 3], ["a labeled image set", 25, 5], ["a multilingual corpus", 15, 8],
@@ -92,6 +96,7 @@ export class Sim {
     this.players = new Map();
     this.byToken = new Map();
     this.byName = new Map(); // lower-cased name -> player; names are unique
+    this.pings = new Map(); // player id -> { until, next }; never saved
     this.raffles = saved?.raffles || [];
     for (const r of this.raffles) for (const w of r.winners) {
       // saves from the email-based version: drop the address, issue a booth code
@@ -157,8 +162,21 @@ export class Sim {
     this.players.delete(id);
     this.byToken.delete(p.token);
     this.byName.delete(p.name.toLowerCase());
+    this.pings.delete(id);
     this.dirty = true;
     return true;
+  }
+
+  /** "Find me": highlight a player on the big screen for a few seconds. */
+  ping(p, now) {
+    const cur = this.pings.get(p.id);
+    if (cur && now < cur.next) return { ok: false, retryMs: cur.next - now };
+    this.pings.set(p.id, { until: now + PING_MS, next: now + PING_COOLDOWN_MS });
+    return { ok: true };
+  }
+
+  pingReadyAt(p) {
+    return this.pings.get(p.id)?.next || 0;
   }
 
   event(text) {
@@ -410,12 +428,18 @@ export class Sim {
   snapshot(now) {
     const players = [];
     for (const p of this.players.values()) {
-      players.push({
+      const row = {
         id: p.id, n: p.name, x: p.x, y: p.y, d: p.dir, l: p.look,
         a: p.act ? p.act.id : null, as: p.act?.start, ae: p.act?.end,
         i: p.inside ? 1 : 0, lv: levelOf(p.xp), xp: p.xp, tk: p.tickets,
         s: p.say && p.say.until > now ? p.say.text : null,
-      });
+      };
+      const pg = this.pings.get(p.id);
+      if (pg) {
+        if (pg.until > now) row.pg = 1; // only sent while active: the feed goes out every tick
+        else if (pg.next <= now) this.pings.delete(p.id);
+      }
+      players.push(row);
     }
     const last = [...this.raffles].reverse().find((r) => r.winners.length);
     return {

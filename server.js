@@ -169,6 +169,7 @@ function meView(p) {
     now, id: p.id, name: p.name, look: p.look, unlocked: p.unlocked,
     level: levelOf(p.xp), xp: p.xp, nextLevelXp: 40 * levelOf(p.xp) ** 2, coins: p.coins,
     tickets: p.tickets, buff: p.buff,
+    pingReadyAt: sim.pingReadyAt(p),
     status: sim.statusOf(p),
     act: p.act ? { id: p.act.id, start: p.act.start, end: p.act.end, icon: ACTS[p.act.id].icon } : null,
     queue: [...(p.goal && !p.act ? [p.goal.act] : []), ...p.queue].map((id) => ACTS[id].short),
@@ -251,6 +252,12 @@ async function handle(req) {
         reply = wasBusy ? `Queued after the current activity: ${names}` : `On my way: ${names}`;
       }
       return json({ reply, steps: result.steps, via: result.via, me: meView(p) });
+    }
+
+    if (path === "/api/ping" && req.method === "POST") {
+      const r = sim.ping(p, Date.now());
+      if (!r.ok) return fail(429, `You can do that again in ${Math.ceil(r.retryMs / 1000)}s.`);
+      return json({ me: meView(p) });
     }
 
     if (path === "/api/look" && req.method === "POST") {

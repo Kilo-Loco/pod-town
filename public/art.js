@@ -281,7 +281,7 @@
     for (const b of init.buildings) {
       const X = b.x * TS, Y = b.y * TS, Wd = b.w * TS, Ht = b.h * TS;
       const r = (px, py, pw, ph, col) => { ctx.fillStyle = col; ctx.fillRect(X + px, Y + py, pw, ph); };
-      const wallH = 28;
+      const wallH = WALL_H;
       const roofH = Ht - wallH;
       r(0, 0, Wd, Ht, OUT);
       // roof
@@ -315,5 +315,112 @@
     return c;
   }
 
-  window.Art = { TS, SKIN, HAIRC, SHIRT, PANTS, HAIRS, ACCS, drawSprite, spriteSheet, bakeWorld };
+  // ---------- building interiors ----------
+  // While a building has people in it, the display swaps its roof for a
+  // cutaway of the room so everyone inside stays visible.
+  const WALL_H = 28; // height of a building's front wall, in pixels
+  const SEAT_DX = 13, SEAT_DY = 13, SEAT_TOP = 3; // rows overlap a little, like a crowd
+
+  /** The roof area of a building in world pixels: where the cutaway is drawn. */
+  function roofRect(b) {
+    return { x: b.x * TS + 1, y: b.y * TS + 1, w: b.w * TS - 2, h: b.h * TS - WALL_H - 1 };
+  }
+
+  /**
+   * Seat positions (sprite top-left, world pixels) in the order they fill:
+   * front row first, from the middle outwards, so the first visitors stand
+   * nearest the door. Every other row has one seat fewer, which staggers it
+   * half a seat sideways (like theatre seating) so heads don't stack into
+   * columns.
+   */
+  function seatsFor(b) {
+    const r = roofRect(b);
+    const cols = Math.max(1, Math.floor((r.w - 4 - TS) / SEAT_DX) + 1);
+    const rows = Math.max(1, Math.floor((r.h - SEAT_TOP - TS) / SEAT_DY) + 1);
+    const seats = [];
+    for (let k = 0; k < rows; k++) {
+      const n = k % 2 && cols > 1 ? cols - 1 : cols;
+      const x0 = r.x + Math.round((r.w - ((n - 1) * SEAT_DX + TS)) / 2);
+      const mid = (n - 1) / 2;
+      const order = [...Array(n).keys()].sort((a, c) => Math.abs(a - mid) - Math.abs(c - mid) || a - c);
+      for (const c of order) seats.push({ x: x0 + c * SEAT_DX, y: r.y + r.h - TS - k * SEAT_DY });
+    }
+    return seats;
+  }
+
+  const ROOMS = {
+    library: { floor: "#9a6a44", line: "#7f5434" },
+    arcade: { floor: "#2f2546", line: "#3d3060" },
+    lab: { floor: "#e4e0f2", line: "#c9c2e6" },
+    gym: { floor: "#c99a5b", line: "#a97c42" },
+    market: { floor: "#e8efe9", line: "#c6d6ca" },
+  };
+
+  /** The cutaway room for one building, sized to roofRect(b). */
+  function bakeInterior(b) {
+    const { w, h } = roofRect(b);
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    const p = (x, y, pw, ph, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, pw, ph); };
+    const theme = ROOMS[b.id] || { floor: C.wall, line: C.wallD };
+    const band = Math.min(12, Math.floor(h / 3)); // back wall, with props along it
+
+    // floor: planks or tiles
+    p(0, 0, w, h, theme.floor);
+    for (let y = band + 5; y < h; y += 6) p(0, y, w, 1, theme.line);
+    for (let y = band, k = 0; y < h; y += 6, k++) {
+      for (let x = (k % 2) * 8 + 3; x < w; x += 16) p(x, y, 1, 6, theme.line);
+    }
+
+    // back wall
+    p(0, 0, w, band, shade(b.color, 0.55));
+    p(0, band - 1, w, 1, shade(b.color, 0.35));
+    const props = (step, draw) => { for (let x = 3; x + step - 3 <= w; x += step) draw(x); };
+    switch (b.id) {
+      case "library": // bookshelves
+        props(12, (x) => {
+          p(x, 1, 10, band - 2, "#5a3a22");
+          const spines = ["#c0504d", "#3f7fbf", "#e8c547", "#3a9d6a", "#874BFF", "#f3ead6"];
+          for (let i = 0; i < 8; i++) p(x + 1 + i, 2, 1, Math.floor((band - 4) / 2), spines[(i + x) % spines.length]);
+          for (let i = 0; i < 8; i++) p(x + 1 + i, 3 + Math.floor((band - 4) / 2), 1, Math.floor((band - 4) / 2) - 1, spines[(i * 3 + x) % spines.length]);
+        });
+        break;
+      case "arcade": // cabinets with glowing screens
+        props(12, (x) => {
+          p(x, 1, 9, band - 1, OUT);
+          p(x + 1, 2, 7, 4, ["#FCB1FF", "#58a8e8", "#72c05c", "#ffca28"][(x >> 2) % 4]);
+          p(x + 2, band - 4, 2, 1, "#e53935"); p(x + 5, band - 4, 2, 1, "#ffca28");
+        });
+        break;
+      case "lab": // server racks, Runpod purple
+        props(11, (x) => {
+          p(x, 1, 8, band - 1, OUT);
+          for (let y = 2; y < band - 1; y += 2) {
+            p(x + 1, y, 6, 1, "#3d3060");
+            p(x + 5, y, 1, 1, (x + y) % 3 ? "#874BFF" : "#72c05c");
+          }
+        });
+        break;
+      case "gym": // mirrors and dumbbell racks
+        props(16, (x) => {
+          p(x, 1, 8, band - 3, "#cfe8ff"); p(x + 1, 2, 2, band - 6, "#ffffff");
+          p(x + 10, band - 4, 4, 1, "#555"); p(x + 9, band - 5, 2, 3, OUT); p(x + 13, band - 5, 2, 3, OUT);
+        });
+        break;
+      case "market": // shelves of swag
+        props(12, (x) => {
+          p(x, 1, 10, band - 2, "#8a5a3a");
+          p(x + 1, 2, 3, 3, "#5D29F0"); p(x + 5, 2, 4, 3, "#FCB1FF");
+          p(x + 1, band - 5, 4, 3, "#e53935"); p(x + 6, band - 5, 3, 3, "#ffca28");
+        });
+        break;
+    }
+    // soft shadow along the inside of the walls
+    p(0, band, w, 2, "rgba(0,0,0,0.18)");
+    p(0, 0, 1, h, "rgba(0,0,0,0.25)"); p(w - 1, 0, 1, h, "rgba(0,0,0,0.25)");
+    return c;
+  }
+
+  window.Art = { TS, SKIN, HAIRC, SHIRT, PANTS, HAIRS, ACCS, drawSprite, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior };
 })();
