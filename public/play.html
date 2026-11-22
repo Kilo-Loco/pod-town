@@ -103,6 +103,8 @@
       <div class="bar" id="barWrap"><i id="bar"></i></div>
       <div class="dim" id="timeLeft"></div>
       <div class="dim" id="queue"></div>
+      <button class="gold" id="findme" style="width:100%;margin-top:10px">📍 Find me on the big screen</button>
+      <div class="dim" id="findmeMsg"></div>
     </div>
 
     <div class="card">
@@ -284,6 +286,10 @@
     const now = Date.now() + offset;
     const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
     $("count").textContent = fmt(me.nextRaffle - now);
+    const wait = (me.pingReadyAt || 0) - now;
+    $("findme").disabled = wait > 0;
+    $("findme").textContent = wait > 0 ? `📍 Find me again in ${Math.ceil(wait / 1000)}s` : "📍 Find me on the big screen";
+    if (wait <= 0) $("findmeMsg").textContent = "";
     if (me.act) {
       const prog = Math.max(0, Math.min(1, (now - me.act.start) / (me.act.end - me.act.start)));
       $("bar").style.width = (prog * 100).toFixed(1) + "%";
@@ -322,6 +328,17 @@
     $("send").onclick = () => { const text = $("prompt").value.trim(); if (text) command({ text }); };
     $("prompt").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").onclick(); } };
     $("stop").onclick = () => command({ steps: ["stop"] });
+    $("findme").onclick = async () => {
+      $("findme").disabled = true;
+      try {
+        const out = await api("/api/ping", {});
+        render(out.me);
+        $("findmeMsg").textContent = "Look at the big screen: your character has a pink arrow over it.";
+      } catch (e) {
+        $("findmeMsg").textContent = e.message;
+      }
+      tickClock();
+    };
     setTimeout(poll, 2500);
   }
 

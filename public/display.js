@@ -1,6 +1,6 @@
 // Big-screen display: renders the town and everyone in it from server snapshots.
 (function () {
-  const { TS, spriteSheet, bakeWorld } = Art;
+  const { TS, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior } = Art;
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
   const $ = (id) => document.getElementById(id);
@@ -10,6 +10,88 @@
   let nextRaffle = 0;
   const players = new Map();
   const DX = [0, -1, 1, 0], DY = [1, 0, 0, -1];
+
+  // Indoor buildings show a cutaway of the room while anyone is inside.
+  // rooms: loc id -> { rect, seats, who (seat index -> player id or null),
+  //                    over (ids with no seat left), count, alpha, img }
+  // seatOf: player id -> { loc, i } for everyone holding a seat.
+  const rooms = {};
+  const seatOf = new Map();
+  const SPOT_MS = 2200; // how long the roll call stays on each person
+
+  function setupRooms(m) {
+    for (const b of m.buildings) {
+      if (!m.labels.find((l) => l.id === b.id)?.indoor) continue;
+      const seats = seatsFor(b);
+      rooms[b.id] = { rect: roofRect(b), seats, who: seats.map(() => null), over: [], count: 0, alpha: 0, img: bakeInterior(b) };
+    }
+  }
+
+  /**
+   * Keep seats stable: a person keeps their seat for as long as they stay
+   * inside, and only free seats are handed out, so a busy room never
+   * reshuffles. When a room is full, later arrivals wait in `over` in arrival
+   * order and the earliest of them gets the next seat that frees up.
+   */
+  function seatPeople() {
+    const wanting = {};
+    for (const p of players.values()) {
+      const loc = p.i ? init.acts[p.a]?.loc : null;
+      const held = seatOf.get(p.id);
+      if (held && held.loc !== loc) { rooms[held.loc].who[held.i] = null; seatOf.delete(p.id); }
+      if (rooms[loc]) (wanting[loc] ||= []).push(p);
+    }
+    for (const [id, held] of seatOf) {
+      if (!players.has(id)) { rooms[held.loc].who[held.i] = null; seatOf.delete(id); }
+    }
+    for (const [loc, room] of Object.entries(rooms)) {
+      const list = (wanting[loc] || []).sort((a, b) => a.as - b.as || (a.id < b.id ? -1 : 1));
+      room.over = [];
+      room.count = list.length;
+      for (const p of list) {
+        if (seatOf.has(p.id)) continue;
+        const free = room.who.indexOf(null);
+        if (free >= 0) { room.who[free] = p.id; seatOf.set(p.id, { loc, i: free }); }
+        else room.over.push(p.id);
+      }
+    }
+  }
+
+  /**
+   * Whose turn it is in a room's roll call: seated people by seat, then the
+   * overflow. Anyone who just pressed "Find me" jumps the queue; if several in
+   * one room did, the spotlight alternates between them every second.
+   */
+  function spotlight(room, t) {
+    const all = room.who.filter(Boolean).concat(room.over);
+    if (!all.length) return null;
+    const called = all.filter((id) => players.get(id)?.pg);
+    if (called.length) return called[Math.floor(t / 1000) % called.length];
+    return all[Math.floor(t / SPOT_MS) % all.length];
+  }
+
+  /** "Find me" marker: a ripple around the character and a bouncing arrow above. */
+  function findMark(cx, cy, top, t) {
+    const ph = (t % 1000) / 1000;
+    ctx.strokeStyle = `rgba(252,177,255,${1 - ph})`;
+    ctx.lineWidth = Math.max(2, 1.5 * scale);
+    ctx.beginPath();
+    ctx.arc(cx, cy, (6 + ph * 14) * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    const tip = top - (10 + Math.abs(Math.sin(t / 180)) * 3) * scale;
+    const w = 5 * scale, h = 5 * scale, o = Math.max(1, scale * 0.75);
+    const tri = (pad, col) => {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(cx, tip + pad);
+      ctx.lineTo(cx - w - pad, tip - h - pad);
+      ctx.lineTo(cx + w + pad, tip - h - pad);
+      ctx.closePath();
+      ctx.fill();
+    };
+    tri(o, "#000010");
+    tri(0, "#FCB1FF");
+  }
   const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 
   const STACKED = "(max-width: 1000px), (orientation: portrait)";
@@ -51,6 +133,7 @@
       if (!init) {
         const m = await getJSON("/api/world");
         bg = [bakeWorld(m, 0), bakeWorld(m, 1)];
+        setupRooms(m);
         init = m; // only once the map is ready to draw
         $("joinUrl").textContent = m.joinUrl.replace(/^https?:\/\//, "");
         $("prize").textContent = "Prize: " + m.prize;
@@ -84,6 +167,7 @@
       if (Math.abs(p.rx - s.x) + Math.abs(p.ry - s.y) > 3) { p.rx = s.x; p.ry = s.y; }
     }
     for (const id of players.keys()) if (!seen.has(id)) players.delete(id);
+    seatPeople();
 
     $("pop").textContent = m.players.length;
     const top = m.players.slice().sort((a, b) => b.xp - a.xp).slice(0, 6);
@@ -161,6 +245,25 @@
     }
     list.sort((a, b) => a.ry - b.ry);
 
+    // building cutaways: fade the roof away while anyone is inside
+    for (const room of Object.values(rooms)) {
+      room.alpha += ((room.count ? 1 : 0) - room.alpha) * Math.min(1, dt * 5);
+      if (room.alpha < 0.01) continue;
+      const r = room.rect;
+      ctx.globalAlpha = room.alpha;
+      ctx.drawImage(room.img, Math.round(r.x * scale), Math.round(r.y * scale), Math.round(r.w * scale), Math.round(r.h * scale));
+      const spot = spotlight(room, t);
+      // back row first, so the front rows overlap it like a crowd
+      for (let i = room.seats.length - 1; i >= 0; i--) {
+        const p = players.get(room.who[i]);
+        if (!p) continue;
+        const s = room.seats[i];
+        const hop = p.id === spot ? Math.round(Math.abs(Math.sin(t / 160)) * 2) : 0;
+        ctx.drawImage(spriteSheet(p.l), 0, 0, TS, TS, Math.round(s.x * scale), Math.round((s.y - hop) * scale), u, u);
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // things drawn under the characters: sprouts and fishing lines
     for (const p of list) {
       if (p.moving || !p.a) continue;
@@ -196,18 +299,44 @@
       ctx.drawImage(spriteSheet(p.l), f * TS, p.d * TS, TS, TS, Math.round(p.rx * u), Math.round((p.ry - 0.25) * u), u, u);
     }
 
-    // building / area signs
-    const fs = Math.max(7, Math.round(5.5 * scale));
-    for (const l of init.labels) {
-      const n = inside[l.id];
-      label(l.name.toUpperCase() + (n ? `  ×${n}` : ""), l.x * u, (l.y + 0.55) * u, fs, "#fff", "rgba(0,0,16,0.82)");
+    // inside each open building: a name tag for whoever's turn it is in the
+    // roll call, and a count of anyone who didn't fit
+    const ns = Math.max(7, Math.round(4.6 * scale));
+    const marks = []; // [cx, cy, top] for everyone who pressed "Find me", drawn last
+    for (const room of Object.values(rooms)) {
+      if (!room.count || room.alpha < 0.5) continue;
+      const r = room.rect;
+      const spot = spotlight(room, t);
+      const called = spot && players.get(spot)?.pg;
+      const si = room.who.indexOf(spot);
+      if (si >= 0) {
+        const s = room.seats[si];
+        // above the head: below would land on the wall, where the overflow badge goes
+        label(players.get(spot).n, (s.x + TS / 2) * scale, s.y * scale - ns * 0.3, ns, "#000010", "#FCB1FF");
+        // arrow tip rests on the name tag: any higher and the back row's arrow hits the sign
+        if (called) marks.push([(s.x + TS / 2) * scale, (s.y + 9) * scale, s.y * scale - ns * 1.1 + 10 * scale]);
+      } else if (called) {
+        const by = (r.y + r.h + 6) * scale; // no seat: point at the overflow badge, which names them
+        marks.push([(r.x + r.w / 2) * scale, by, by + 4 * scale]);
+      }
+      if (room.over.length) {
+        // The sign has the total; this counts only the people with no seat,
+        // so say so outright (seated + not shown = the sign's number).
+        const n = room.over.length;
+        const waiting = si < 0 && spot ? players.get(spot)?.n : null;
+        const text = waiting
+          ? (n > 1 ? `${waiting} + ${n - 1} more not shown` : `${waiting} not shown`)
+          : `+${n} not shown`;
+        label(text, (r.x + r.w / 2) * scale, (r.y + r.h + 6) * scale, ns,
+          waiting ? "#000010" : "#fff", waiting ? "#FCB1FF" : "rgba(0,0,16,0.82)");
+      }
     }
 
     // name tags, activity icons, speech
-    const ns = Math.max(7, Math.round(4.6 * scale));
     for (const p of list) {
       const cx = (p.rx + 0.5) * u, top = (p.ry - 0.25) * u;
-      label(p.n, cx, top + u + ns * 0.6, ns, "#fff", "rgba(0,0,16,0.6)");
+      label(p.n, cx, top + u + ns * 0.6, ns, p.pg ? "#000010" : "#fff", p.pg ? "#FCB1FF" : "rgba(0,0,16,0.6)");
+      if (p.pg) marks.push([cx, (p.ry + 0.45) * u, top]);
       if (p.a && !p.moving) {
         const prog = Math.max(0, Math.min(1, (now - p.as) / (p.ae - p.as)));
         ctx.font = `${Math.round(7 * scale)}px sans-serif`;
@@ -228,6 +357,18 @@
       ctx.fillStyle = "#fff"; ctx.fillRect(x, y, w, size * 1.6);
       ctx.fillStyle = "#2a2233"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
       ctx.fillText(p.s, x + size / 2, y + size * 0.85);
+    }
+
+    // "Find me" markers go on top of everything else
+    for (const [cx, cy, top] of marks) findMark(cx, cy, top, t);
+
+    // building / area signs, drawn last so nothing covers them (an open
+    // building's sign lifts off the roof so it doesn't cover the back row)
+    const fs = Math.max(7, Math.round(5.5 * scale));
+    for (const l of init.labels) {
+      const n = inside[l.id];
+      const lift = rooms[l.id] ? rooms[l.id].alpha * (0.55 * u + 5 * scale) : 0;
+      label(l.name.toUpperCase() + (n ? ` · ${n} INSIDE` : ""), l.x * u, (l.y + 0.55) * u - lift, fs, "#fff", "rgba(0,0,16,0.82)");
     }
 
     // countdown
