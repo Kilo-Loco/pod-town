@@ -120,6 +120,14 @@ let lastRaffle = null;
 sim.onRaffle = (r) => { lastRaffle = { ...r, at: Date.now() }; };
 
 let stateMsg = "{}";
+
+/** Tiles a place covers (inclusive): the building's footprint, or the spread of its activity spots. */
+function areaOf(id, loc) {
+  const b = world.BUILDINGS.find((x) => x.id === id);
+  if (b) return { x0: b.x, y0: b.y, x1: b.x + b.w - 1, y1: b.y + b.h - 1 };
+  const xs = loc.spots.map((s) => s.x), ys = loc.spots.map((s) => s.y);
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+}
 function tick() {
   const now = Date.now();
   sim.tick(now);
@@ -130,7 +138,7 @@ setInterval(tick, TICK_MS);
 
 const initMsg = JSON.stringify({
   w: world.W, h: world.H, grid: world.grid, buildings: world.BUILDINGS,
-  labels: Object.entries(world.locs).map(([id, l]) => ({ id, name: l.name, indoor: l.indoor, ...l.label })),
+  labels: Object.entries(world.locs).map(([id, l]) => ({ id, name: l.name, indoor: l.indoor, ...l.label, box: areaOf(id, l) })),
   acts: Object.fromEntries(Object.entries(ACTS).map(([id, a]) => [id, { icon: a.icon, loc: a.loc }])),
   tickMs: TICK_MS, joinUrl: JOIN_URL, prize: cfg.rafflePrize,
 });
@@ -170,6 +178,12 @@ function meView(p) {
     level: levelOf(p.xp), xp: p.xp, nextLevelXp: 40 * levelOf(p.xp) ** 2, coins: p.coins,
     tickets: p.tickets, buff: p.buff,
     pingReadyAt: sim.pingReadyAt(p),
+    // for the phone's mini-map: where you are, the building you're in, where you're headed
+    pos: {
+      x: p.x, y: p.y, inside: p.inside,
+      loc: p.act ? ACTS[p.act.id].loc : null,
+      dest: p.goal ? { x: p.goal.spot.x, y: p.goal.spot.y } : null,
+    },
     status: sim.statusOf(p),
     act: p.act ? { id: p.act.id, start: p.act.start, end: p.act.end, icon: ACTS[p.act.id].icon } : null,
     queue: [...(p.goal && !p.act ? [p.goal.act] : []), ...p.queue].map((id) => ACTS[id].short),

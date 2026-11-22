@@ -164,6 +164,9 @@
       let p = players.get(s.id);
       if (!p) { p = { rx: s.x, ry: s.y }; players.set(s.id, p); }
       Object.assign(p, s);
+      // the server leaves `pg` out once "Find me" ends, and Object.assign never
+      // clears a missing key, so reset it here or the arrow would stay forever
+      p.pg = s.pg || 0;
       if (Math.abs(p.rx - s.x) + Math.abs(p.ry - s.y) > 3) { p.rx = s.x; p.ry = s.y; }
     }
     for (const id of players.keys()) if (!seen.has(id)) players.delete(id);
