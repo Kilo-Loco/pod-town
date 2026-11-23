@@ -354,6 +354,7 @@
     lab: { floor: "#e4e0f2", line: "#c9c2e6" },
     gym: { floor: "#c99a5b", line: "#a97c42" },
     market: { floor: "#e8efe9", line: "#c6d6ca" },
+    cafe: { floor: "#b07a4e", line: "#94623a" },
   };
 
   /** The cutaway room for one building, sized to roofRect(b). */
@@ -408,6 +409,20 @@
           p(x + 10, band - 4, 4, 1, "#555"); p(x + 9, band - 5, 2, 3, OUT); p(x + 13, band - 5, 2, 3, OUT);
         });
         break;
+      case "cafe": { // menu boards and an espresso machine behind the counter
+        props(13, (x) => {
+          if ((x / 13 | 0) % 3 === 1) { // espresso machine
+            p(x + 1, 2, 9, band - 3, OUT); p(x + 2, 3, 7, band - 5, "#c9c2e6"); p(x + 3, 4, 5, 2, "#874BFF");
+            p(x + 4, band - 4, 1, 2, OUT); p(x + 6, band - 4, 1, 2, OUT); p(x + 3, band - 2, 5, 1, "#ffffff");
+          } else { // chalk menu board
+            p(x, 1, 11, band - 3, "#7a5230"); p(x + 1, 2, 9, band - 5, "#2a2233");
+            for (let y = 3; y < band - 4; y += 2) p(x + 2, y, 3 + ((x + y) % 4), 1, "#f3ead6");
+            p(x + 7, 3, 2, 2, "#d98e3a");
+          }
+        });
+        p(0, band, w, 3, "#5a3a22"); p(0, band, w, 1, "#8a5a3a"); // the counter
+        break;
+      }
       case "market": // shelves of swag
         props(12, (x) => {
           p(x, 1, 10, band - 2, "#8a5a3a");
@@ -715,6 +730,11 @@
     gym(p, w, h, band) { // blue training mats
       p(3, band + 3, w - 6, h - band - 6, "#2f5f99"); p(5, band + 5, w - 10, h - band - 10, "#3f7fbf");
       p(Math.floor(w / 2), band + 5, 1, h - band - 10, "#ffffff");
+    },
+    cafe(p, w, h, band) { // warm pendant lights and a patterned rug
+      for (let x = 10; x < w - 8; x += 18) { p(x + 2, band + 3, 1, 4, OUT); p(x, band + 7, 5, 3, "#ffca28"); p(x - 3, band + 10, 11, 8, "rgba(255,202,40,0.18)"); }
+      p(8, band + 18, w - 16, h - band - 22, "#8e2b2b");
+      for (let x = 12; x < w - 12; x += 8) p(x, band + 20, 4, h - band - 26, "#b23a3a");
     },
     market(p, w, h, band) { // gold spotlights on the swag
       for (let x = 6; x < w - 6; x += 14) p(x, band, 8, h - band, "rgba(255,236,140,0.18)");

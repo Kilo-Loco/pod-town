@@ -79,13 +79,8 @@ function build() {
 
   locs.sandbox = { name: "Sandbox", indoor: false, spots: sandSpots, label: { x: 24, y: 2.9 } };
 
-  // cafe patio
+  // cafe patio: two tables out front, for looks (people warm up inside)
   set(13, 9, T.TABLE); set(17, 9, T.TABLE);
-  locs.cafe.indoor = false;
-  locs.cafe.spots = [
-    { x: 12, y: 9, dir: 2 }, { x: 14, y: 9, dir: 1 },
-    { x: 16, y: 9, dir: 2 }, { x: 18, y: 9, dir: 1 },
-  ];
 
   // pond
   const cx = 6.5, cy = 23.5, rx = 4.4, ry = 3.3;
