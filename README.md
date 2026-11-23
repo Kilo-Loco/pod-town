@@ -6,9 +6,11 @@ Finished activities earn raffle tickets, and a raffle draws every hour.
 
 Players only choose a character name. No app, sign-up or personal data.
 
+[![Watch the 1-minute Pod Town promo](docs/promo-poster.jpg)](https://github.com/Kilo-Loco/pod-town/releases/download/v1.1.0/pod-town-promo.mp4)
+
 | Big screen | Phone |
 | --- | --- |
-| ![The town on the big screen](docs/big-screen.jpg) | ![The phone join page](docs/phone.jpg) |
+| ![The town on the big screen](docs/big-screen.jpg) | ![The phone app: pick a place to send your character](docs/phone.jpg) |
 
 ## Set up for an event
 
@@ -33,7 +35,7 @@ path as `/workspace`. Without it, a Pod restart empties the town and resets the
 admin password, which you must then choose again at once.
 
 **No Pod Town template?** Under Templates, create one: compute type CPU,
-container image `ghcr.io/kilo-loco/pod-town:v1.0.0`, container disk 5 GB, HTTP
+container image `ghcr.io/kilo-loco/pod-town:v1.1.0`, container disk 5 GB, HTTP
 port 8080. Leave everything else blank.
 
 Optional settings, as environment variables on the Pod or template:
