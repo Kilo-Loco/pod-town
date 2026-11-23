@@ -479,6 +479,17 @@ export class Sim {
     return "Wandering around town";
   }
 
+  /** How many players hold tickets for the next raffle (worked out at most once a second). */
+  entrants() {
+    const now = Date.now();
+    if (!this._entrants || now - this._entrants.at > 1000) {
+      let n = 0;
+      for (const p of this.players.values()) if (p.tickets > 0) n++;
+      this._entrants = { n, at: now };
+    }
+    return this._entrants.n;
+  }
+
   nextRaffle(now) {
     return (Math.floor(now / this.raffleMs) + 1) * this.raffleMs;
   }
