@@ -70,6 +70,38 @@
     </div>
     <table><thead><tr><th>Place</th><th>Level</th><th>Upgrades</th><th>Tickets this hour</th></tr></thead><tbody id="town"></tbody></table>
     <div class="dim" id="tstatues"></div>
+    <h2>Weather</h2>
+    <p class="dim">Weather is drawn over the town on the big screen and mentioned on phones. It doesn't change raffle odds unless you turn on the ticket boost.</p>
+    <div class="bar">
+      <label>Weather <select id="wmode">
+        <option value="off">Off</option>
+        <option value="auto">Auto: changes at each raffle</option>
+        <option value="fixed">Fixed: always the one below</option>
+        <option value="live">Live: a real city's weather</option>
+      </select></label>
+      <select id="wfixed"></select>
+      <span id="wcityBox"><input id="wcity" type="text" placeholder="City, e.g. San Francisco, US" style="width:240px"><button id="wcitySet">Use this city</button></span>
+    </div>
+    <div class="bar">
+      <label><input id="wboost" type="checkbox" style="width:auto"> Ticket boost: the activity that suits the weather earns double tickets</label>
+    </div>
+    <div class="bar">
+      <span class="dim" id="wnow"></span>
+      <button class="ghost" id="wdefault">Use event defaults</button>
+    </div>
+    <h2>Season</h2>
+    <p class="dim">A seasonal theme decorates the town and adds one limited-time activity. Auto follows the date (northern hemisphere): Halloween in October, winter from December to February, spring from 20 March to May.</p>
+    <div class="bar">
+      <label>Season <select id="smode">
+        <option value="off">Off</option>
+        <option value="auto">Auto: by date</option>
+        <option value="winter">❄️ Winter: snowman building</option>
+        <option value="halloween">🎃 Halloween: pumpkin carving</option>
+        <option value="spring">🌷 Spring: kite flying</option>
+      </select></label>
+      <span class="dim" id="snow"></span>
+      <button class="ghost" id="sdefault">Use event defaults</button>
+    </div>
     <h2>Players (<span id="pc">0</span>)</h2>
     <table><thead><tr><th>Name</th><th>Lv</th><th>Tickets</th><th>Done</th><th>Status</th><th></th></tr></thead><tbody id="players"></tbody></table>
   </div>
@@ -122,6 +154,8 @@
 
     filterCodes();
     renderTown(s.town);
+    renderWeather(s.weather);
+    renderSeason(s.season);
     $("pc").textContent = s.players.length;
     const pl = $("players"); pl.textContent = "";
     for (const p of s.players.sort((a, b) => b.xp - a.xp)) {
@@ -165,6 +199,45 @@
   $("tdefault").onclick = () => setTown({ useDefaults: true });
   $("tclear").onclick = () => { if (confirm("Remove every statue from the Plaza?")) setTown({ clearStatues: true }); };
   $("treset").onclick = () => { if (confirm("Reset the town? Every place goes back to no upgrades and this hour's tickets toward the town project are cleared.")) setTown({ reset: true }); };
+
+  const setWeather = (data) => act(() => api("/api/admin/weather", data));
+  const WX = { clear: "☀️ Clear", overcast: "☁️ Overcast", rain: "🌧️ Rain", snow: "❄️ Snow", fog: "🌫️ Fog", blossoms: "🌸 Blossoms" };
+  function renderWeather(w) {
+    if (!$("wfixed").options.length) for (const c of w.conditions) $("wfixed").append(new Option(WX[c] || c, c));
+    if (document.activeElement !== $("wmode")) $("wmode").value = w.mode;
+    if (document.activeElement !== $("wfixed")) $("wfixed").value = w.fixed;
+    if (document.activeElement !== $("wcity")) $("wcity").value = w.city;
+    $("wfixed").style.display = w.mode === "fixed" ? "" : "none";
+    $("wcityBox").style.display = w.mode === "live" ? "" : "none";
+    $("wboost").checked = w.boost;
+    const changed = Object.keys(w.override).length;
+    $("wdefault").style.display = changed ? "" : "none";
+    let now = w.current ? `Showing now: ${WX[w.current]}` : "Weather is off.";
+    if (w.mode === "live") {
+      if (!w.city) now = "Type a city to show its weather.";
+      else if (w.live?.error) now = `Couldn't get the weather for "${w.city}": ${w.live.error} Showing ${WX[w.current]} meanwhile.`;
+      else if (w.live?.place) now = `Live: ${w.live.place} · ${WX[w.current]}${w.live.tempC != null ? ` · ${Math.round(w.live.tempC)}°C` : ""} · updated ${Math.max(0, Math.round((Date.now() - w.live.at) / 60000))} min ago`;
+      else now = `Looking up the weather for "${w.city}"…`;
+    }
+    const d = w.defaults;
+    $("wnow").textContent = now + ` · Event defaults: ${d.mode === "fixed" ? d.fixed : d.mode}${d.city ? `, ${d.city}` : ""}, boost ${d.boost ? "on" : "off"}` + (changed ? " (changed here)" : "");
+  }
+  $("wmode").onchange = () => setWeather({ mode: $("wmode").value });
+  $("wfixed").onchange = () => setWeather({ fixed: $("wfixed").value });
+  $("wcitySet").onclick = () => setWeather({ city: $("wcity").value });
+  $("wcity").onkeydown = (e) => { if (e.key === "Enter") $("wcitySet").onclick(); };
+  $("wboost").onchange = () => setWeather({ boost: $("wboost").checked });
+  $("wdefault").onclick = () => setWeather({ useDefaults: true });
+
+  function renderSeason(z) {
+    if (document.activeElement !== $("smode")) $("smode").value = z.mode;
+    const changed = Object.keys(z.override).length;
+    $("sdefault").style.display = changed ? "" : "none";
+    $("snow").textContent = (z.current ? `Showing now: ${z.seasons[z.current].name}` : "No season showing") +
+      ` · Event default: ${z.defaults.mode}` + (changed ? " (changed here)" : "");
+  }
+  $("smode").onchange = () => act(() => api("/api/admin/season", { mode: $("smode").value }));
+  $("sdefault").onclick = () => act(() => api("/api/admin/season", { useDefaults: true }));
 
   // Staff type the code a winner shows them; only matching rows stay visible.
   function filterCodes() {

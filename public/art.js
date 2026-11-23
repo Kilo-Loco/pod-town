@@ -897,6 +897,128 @@
     return x1 < 0 ? null : { x0, y0, x1, y1 };
   }
 
+  // ---------- seasons ----------
+  // Seasonal decorations (game/season.js): a static layer drawn over the
+  // upgrades, a roof layer drawn under the room cutaways (winter snow), and
+  // small animations (twinkling lights, bats, butterflies) drawn every frame.
+
+  /** Where a building's eaves are: the line where its roof meets the wall. */
+  const eaveY = (b) => b.y * TS + b.h * TS - WALL_H;
+
+  /** Seasonal decorations that sit on walls and ground. */
+  function drawSeasonDecor(init, season) {
+    const c = document.createElement("canvas");
+    c.width = init.w * TS; c.height = init.h * TS;
+    if (!season) return c;
+    const ctx = c.getContext("2d");
+    const P = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
+    if (season === "winter") {
+      // snow caps on every tree
+      for (let y = 0; y < init.h; y++) for (let x = 0; x < init.w; x++) {
+        if (init.grid[y][x] !== T.TREE) continue;
+        const X = x * TS, Y = y * TS;
+        P(X + 4, Y + 1, 8, 2, "#ffffff"); P(X + 3, Y + 3, 3, 1, "#ffffff"); P(X + 10, Y + 3, 3, 1, "#ffffff"); P(X + 5, Y + 3, 6, 1, "#e4ecf7");
+      }
+      // a wreath on every door
+      for (const b of init.buildings) {
+        const X = b.door.x * TS, Y = (b.y + b.h) * TS - 17;
+        P(X + 4, Y, 8, 8, "#2f6b3a"); P(X + 6, Y + 2, 4, 4, shade(b.color, 0.7)); P(X + 5, Y + 1, 2, 1, "#72c05c"); P(X + 7, Y + 6, 2, 2, "#e53935");
+      }
+    }
+    if (season === "halloween") {
+      for (const b of init.buildings) {
+        // a jack-o'-lantern beside each door (its glow flickers in drawSeasonFx)
+        const X = (b.door.x - 1) * TS, Y = (b.door.y + 1) * TS;
+        P(X + 4, Y + 6, 9, 8, OUT); P(X + 5, Y + 7, 7, 6, "#ff7a1a"); P(X + 7, Y + 7, 1, 6, "#e0620d"); P(X + 10, Y + 7, 1, 6, "#e0620d");
+        P(X + 8, Y + 4, 2, 3, "#3f8f4a");
+        // cobwebs in the top corners of the wall
+        const L = b.x * TS + 1, R = (b.x + b.w) * TS - 1, E = eaveY(b) + 1;
+        for (let i = 0; i < 6; i++) { P(L + i, E + i, 1, 1, "#d6d6e0"); P(R - 1 - i, E + i, 1, 1, "#d6d6e0"); }
+        P(L, E + 3, 4, 1, "#d6d6e0"); P(L + 3, E, 1, 4, "#d6d6e0"); P(R - 4, E + 3, 4, 1, "#d6d6e0"); P(R - 4, E, 1, 4, "#d6d6e0");
+      }
+    }
+    if (season === "spring") {
+      // flower garlands along the eaves
+      const blooms = ["#ff8fb8", "#ffffff", "#ffe14d", "#c9a4ff"];
+      for (const b of init.buildings) {
+        const Y = eaveY(b) + 1;
+        for (let x = 2, i = 0; x < b.w * TS - 3; x += 3, i++) {
+          const sag = Math.round(Math.sin((x / (b.w * TS)) * Math.PI * 4) * 1.5 + 1.5);
+          P(b.x * TS + x, Y + sag, 3, 1, "#3f8f4a");
+          if (i % 2 === 0) P(b.x * TS + x, Y + sag + 1, 2, 2, blooms[(i / 2) % blooms.length]);
+        }
+      }
+    }
+    return c;
+  }
+
+  /** Seasonal touches on the roofs, drawn under the room cutaways (winter snow). */
+  function drawSeasonRoofs(init, season) {
+    const c = document.createElement("canvas");
+    c.width = init.w * TS; c.height = init.h * TS;
+    if (season !== "winter") return c;
+    const ctx = c.getContext("2d");
+    for (const b of init.buildings) {
+      const X = b.x * TS, Y = b.y * TS, w = b.w * TS;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(X + 1, Y + 1, w - 2, 4);
+      for (let x = 2; x < w - 3; x += 5) ctx.fillRect(X + x, Y + 5, 3, 1 + ((x * 7) % 4)); // icicle-ish drips
+      ctx.fillStyle = "#e4ecf7";
+      ctx.fillRect(X + 1, Y + 4, w - 2, 1);
+      const eave = eaveY(b);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(X + 1, eave - 4, w - 2, 2); // snow along the bottom edge of the roof
+    }
+    return c;
+  }
+
+  /** Seasonal animations, drawn every frame in canvas pixels. */
+  function drawSeasonFx(ctx, init, season, t, scale) {
+    if (!season) return;
+    const px = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x * scale), Math.round(y * scale), Math.ceil(w * scale), Math.ceil(h * scale)); };
+    const W = init.w * TS, H = init.h * TS;
+    if (season === "winter") { // string lights along the eaves, twinkling in turn
+      const cols = ["#e53935", "#ffca28", "#43a047", "#1e88e5", "#FCB1FF"];
+      const step = Math.floor(t / 450);
+      for (const b of init.buildings) {
+        const Y = eaveY(b) + 1;
+        for (let x = 3, i = 0; x < b.w * TS - 3; x += 5, i++) {
+          const sag = Math.round(Math.sin((x / (b.w * TS)) * Math.PI * 4) + 1);
+          px(b.x * TS + x, Y + sag, 1, 1, "#2a2233");
+          if ((i + step) % 4 !== 0) px(b.x * TS + x, Y + sag + 1, 2, 2, cols[(i + b.x) % cols.length]);
+        }
+      }
+    }
+    if (season === "halloween") {
+      ctx.fillStyle = "rgba(45,15,70,0.22)"; // a spooky dusk over the town
+      ctx.fillRect(0, 0, W * scale, H * scale);
+      for (const b of init.buildings) { // lantern glow flickers
+        const X = (b.door.x - 1) * TS, Y = (b.door.y + 1) * TS;
+        const on = Math.sin(t / 90 + b.x) > -0.6;
+        const g = ctx.createRadialGradient((X + 8.5) * scale, (Y + 10) * scale, 0, (X + 8.5) * scale, (Y + 10) * scale, 14 * scale);
+        g.addColorStop(0, on ? "rgba(255,180,60,0.45)" : "rgba(255,150,40,0.3)"); g.addColorStop(1, "rgba(255,150,40,0)");
+        ctx.fillStyle = g; ctx.fillRect((X - 6) * scale, (Y - 4) * scale, 29 * scale, 29 * scale);
+        px(X + 6, Y + 9, 2, 2, on ? "#fff176" : "#ffb74d"); px(X + 9, Y + 9, 2, 2, on ? "#fff176" : "#ffb74d"); px(X + 7, Y + 11, 3, 1, on ? "#fff176" : "#ffb74d");
+      }
+      for (let i = 0; i < 5; i++) { // bats flap across the sky
+        const k = ((t / 14000) + i / 5) % 1;
+        const x = k * (W + 40) - 20, y = 20 + i * 38 + Math.sin(t / 500 + i * 2) * 10;
+        const flap = Math.floor(t / 120 + i) % 2;
+        px(x, y, 4, 3, "#1b1530"); px(x + 1, y + 1, 1, 1, "#ff7a1a"); px(x + 2, y + 1, 1, 1, "#ff7a1a");
+        px(x - 5, y - (flap ? 3 : 0), 5, 2, "#1b1530"); px(x + 4, y - (flap ? 3 : 0), 5, 2, "#1b1530");
+      }
+    }
+    if (season === "spring") { // butterflies flutter about
+      const cols = ["#ffca28", "#FCB1FF", "#58a8e8", "#ffffff"];
+      for (let i = 0; i < 7; i++) {
+        const x = ((i * 113 + t / 60) % W + W) % W, y = (i * 61) % (H - 40) + 20 + Math.sin(t / 700 + i) * 12;
+        const open = Math.floor(t / 150 + i) % 2;
+        px(x, y, 1, 3, "#2a2233");
+        px(x - (open ? 3 : 1), y, open ? 3 : 1, 2, cols[i % cols.length]); px(x + 1, y, open ? 3 : 1, 2, cols[i % cols.length]);
+      }
+    }
+  }
+
   // ---------- statues ----------
   // Raffle winners stand on plinths around the Plaza, carved in stone.
   const STATUE_SPOTS = [[20, 12], [27, 12], [20, 16], [27, 16]];
@@ -926,5 +1048,5 @@
     return c;
   }
 
-  window.Art = { TS, SKIN, HAIRC, SHIRT, PANTS, HAIRS, ACCS, drawSprite, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior, drawUpgrades, drawRoofUpgrades, drawLandmarkFx, inkBox, statueSprite, STATUE_SPOTS };
+  window.Art = { TS, SKIN, HAIRC, SHIRT, PANTS, HAIRS, ACCS, drawSprite, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior, drawUpgrades, drawRoofUpgrades, drawLandmarkFx, drawSeasonDecor, drawSeasonRoofs, drawSeasonFx, inkBox, statueSprite, STATUE_SPOTS };
 })();

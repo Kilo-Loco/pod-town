@@ -107,6 +107,8 @@
       <div class="dim" id="queue"></div>
       <canvas id="map" aria-label="Map of Pod Town showing where your character is"></canvas>
       <div class="dim" id="where"></div>
+      <div class="dim hide" id="weather"></div>
+      <div class="dim hide" id="season"></div>
       <button class="gold" id="findme" style="width:100%;margin-top:10px">📍 Find me on the big screen</button>
       <div class="dim" id="findmeMsg"></div>
     </div>
@@ -238,16 +240,27 @@
     $("barWrap").classList.toggle("hide", !m.act);
     $("queue").textContent = m.queue.length ? "Up next: " + m.queue.join(" → ") : "";
     $("where").textContent = m.pos ? describeWhere(m.pos) : "";
+    $("season").classList.toggle("hide", !m.season);
+    if (m.season) $("season").textContent = `${m.season.icon} It's ${m.season.name.toLowerCase()} in Pod Town! Limited time: ${m.season.actName}.`;
+    $("weather").classList.toggle("hide", !m.weather);
+    if (m.weather) {
+      const boosted = m.weather.boost && m.acts.find((a) => a.id === m.weather.boost);
+      $("weather").textContent = `${m.weather.icon} ${m.weather.text}.` + (boosted ? ` ${boosted.short} earns double tickets right now!` : "");
+    }
     $("prize").textContent = m.prize;
     $("project").classList.toggle("hide", !m.town);
     if (m.town) $("project").textContent = projectText(m.town.leaders, m.town.mine || []);
     $("who").textContent = "Your character is saved on this phone. Keep using this browser to come back to it.";
 
-    if (!$("chips").children.length) {
+    // rebuilt when the weather changes which activity earns double tickets
+    const chipsKey = m.acts.map((a) => a.id + a.tickets).join(",");
+    if ($("chips").dataset.key !== chipsKey) {
+      $("chips").dataset.key = chipsKey;
+      $("chips").textContent = "";
       for (const a of m.acts) {
         const b = document.createElement("button"); b.className = "ghost";
         b.textContent = a.icon + " " + a.short;
-        const s = document.createElement("small"); s.textContent = `${a.mins} min · 🎟${a.tickets}`;
+        const s = document.createElement("small"); s.textContent = `${a.mins} min · 🎟${a.tickets}` + (a.boost ? " ×2 now" : "");
         b.append(s);
         b.onclick = () => command({ steps: [a.id] });
         $("chips").append(b);

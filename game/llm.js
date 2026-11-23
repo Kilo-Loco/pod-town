@@ -15,6 +15,9 @@ const KEYWORDS = {
   warmup: /caf[eé]|coffee|warm|cache|latte|\btea\b|espresso|drink|thirst/,
   shop: /shop|swag|market|\bbuy|store|merch|accessor|hat\b/,
   chat: /chat|talk|plaza|fountain|network|friend|social|hang ?out|meet|ping/,
+  snowman: /snow ?man|snow/,
+  pumpkin: /pumpkin|jack.?o|carv|spooky|halloween/,
+  kite: /\bkite|\bfly\b|breeze/,
 };
 
 const CANNED = {
@@ -22,6 +25,7 @@ const CANNED = {
   benchmark: "Top of the leaderboard, here I come!", data: "Gone fishin' for data!", farm: "Let's grow some GPUs!",
   read: "Time to read some papers!", warmup: "No cold starts today!", shop: "Ooh, swag!",
   chat: "Anyone want to sync?", stop: "Okay, scaling to zero.",
+  snowman: "Snowman time!", pumpkin: "Spooky carving time!", kite: "Up, up and away!",
 };
 
 export function keywordParse(text) {
