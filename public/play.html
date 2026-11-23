@@ -6,152 +6,275 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000010">
 <style>
-  :root { --bg: #000010; --panel: #0b052b; --line: #210e5e; --ink: #ffffff; --dim: #b3b3c0; --pop: #874BFF; --gold: #FCB1FF; --bad: #FF661A; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; -webkit-text-size-adjust: 100%; }
-  main { max-width: 520px; margin: 0 auto; padding: 14px 14px 40px; }
-  h1 { margin: 4px 0 2px; font-size: 28px; letter-spacing: 3px; color: var(--pop); text-shadow: 3px 3px 0 #000; }
-  h2 { margin: 0 0 8px; font-size: 13px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
-  p { margin: 6px 0; }
-  .dim { color: var(--dim); font-size: 13px; }
-  .card { background: var(--panel); border: 3px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 12px; }
-  label { display: block; font-size: 13px; color: var(--dim); margin: 10px 0 4px; }
-  input[type=text], textarea { width: 100%; padding: 12px; font: inherit; color: var(--ink); background: #000010; border: 2px solid var(--line); border-radius: 6px; }
-  input:focus, textarea:focus { outline: none; border-color: var(--pop); }
-  button { font: inherit; font-weight: bold; color: #fff; background: #5D29F0; border: 0; border-bottom: 4px solid #3d14b8; border-radius: 6px; padding: 12px 14px; cursor: pointer; touch-action: manipulation; }
-  button:active { transform: translateY(2px); border-bottom-width: 2px; }
-  button:disabled { opacity: 0.5; }
-  button.big { width: 100%; font-size: 18px; margin-top: 14px; }
-  button.ghost { background: #170a48; border-bottom-color: #0b052b; color: var(--ink); font-weight: normal; }
-  button.gold { background: #FCB1FF; border-bottom-color: #D58EFF; color: #000010; }
-  .err { color: var(--bad); min-height: 1.4em; margin-top: 8px; font-size: 14px; }
-  canvas { image-rendering: pixelated; }
-  #creator { display: flex; gap: 12px; align-items: center; }
-  #preview { width: 128px; height: 128px; background: #9bd45c; border: 3px solid var(--line); border-radius: 6px; flex: none; }
-  .opts { flex: 1; display: grid; gap: 6px; }
-  .opt { display: flex; align-items: center; gap: 6px; }
-  .opt span { flex: 1; text-align: center; font-size: 13px; }
-  .opt button { padding: 6px 12px; }
-  #code { font-size: 40px; font-weight: bold; letter-spacing: 6px; text-align: center; color: var(--gold); background: #000010; border: 2px dashed var(--gold); border-radius: 8px; padding: 10px 4px; margin: 10px 0; }
-  #head { display: flex; gap: 12px; align-items: center; }
-  #me { width: 64px; height: 64px; background: #9bd45c; border: 3px solid var(--line); border-radius: 6px; flex: none; }
-  #head b { font-size: 20px; }
-  .stats { display: flex; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--dim); }
-  .stats span b { color: var(--gold); font-size: 14px; }
-  .bar { height: 12px; background: #000010; border: 2px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 8px; }
-  .bar i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.5s linear; }
-  #status { font-size: 17px; }
-  .row { display: flex; gap: 8px; margin-top: 8px; }
-  .row textarea { flex: 1; resize: none; height: 52px; }
-  .chips { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
-  .chips button { padding: 10px 4px; font-size: 13px; }
-  .chips small { display: block; color: var(--dim); font-weight: normal; font-size: 11px; }
-  #reply { min-height: 1.4em; margin-top: 8px; color: var(--gold); font-size: 14px; }
-  ul { margin: 0; padding: 0; list-style: none; font-size: 13px; }
-  li { padding: 5px 0; border-bottom: 1px dashed var(--line); }
-  li:last-child { border: 0; }
-  #map { display: block; width: 100%; aspect-ratio: 48 / 30; margin-top: 10px; background: #9bd45c; border: 2px solid var(--line); border-radius: 6px; }
-  #where { margin-top: 6px; }
-  #win { border-color: var(--gold); display: none; }
-  #win h2 { color: var(--gold); }
+  :root {
+    --bg: #000010; --panel: #0b052b; --raised: #170a48; --line: #210e5e; --ink: #ffffff; --dim: #b3b3c0;
+    --pop: #874BFF; --pop-dark: #5D29F0; --gold: #FCB1FF; --bad: #FF661A; --ok: #72c05c;
+    --pixel: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --top: calc(60px + env(safe-area-inset-top)); --tabs: calc(64px + env(safe-area-inset-bottom));
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 16px; }
   .hide { display: none !important; }
+  canvas { image-rendering: pixelated; }
+  h1 { font-family: var(--pixel); margin: 0; font-size: 28px; letter-spacing: 3px; color: var(--pop); text-shadow: 3px 3px 0 #000; }
+  h2 { font-size: 20px; margin: 18px 0 10px; }
+  .muted { color: var(--dim); font-size: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-top: 12px; }
+  button { font: inherit; font-weight: 600; color: #fff; background: var(--raised); border: 1px solid #2e1a7a; border-radius: 14px; padding: 12px 14px; min-height: 48px; cursor: pointer; touch-action: manipulation; }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; }
+  .primary { width: 100%; background: var(--pop-dark); border-color: var(--pop-dark); font-size: 18px; min-height: 56px; }
+  .pink { width: 100%; background: var(--gold); border-color: var(--gold); color: #26215C; font-size: 17px; min-height: 54px; }
+  .link { background: none; border: 0; color: var(--gold); font-weight: 600; min-height: 44px; padding: 8px 0; }
+  input[type=text] { width: 100%; padding: 14px; font: inherit; font-size: 18px; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 14px; }
+  input:focus { outline: none; border-color: var(--pop); }
+  .err { color: var(--bad); min-height: 1.4em; margin-top: 8px; font-size: 15px; }
+
+  /* ---------- join ---------- */
+  #join { padding: calc(20px + env(safe-area-inset-top)) 0 32px; }
+  .steps { display: flex; gap: 6px; margin: 14px 0 4px; }
+  .steps i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); }
+  .steps i.on { background: var(--gold); }
+  #preview { display: block; width: 144px; height: 144px; margin: 8px auto 12px; background: #9bd45c; border-radius: 20px; border: 3px solid var(--line); }
+  .opts { display: grid; gap: 8px; }
+  .opt { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px; }
+  .opt span { flex: 1; text-align: center; font-size: 15px; }
+  .opt span b { color: var(--dim); font-weight: 400; }
+  .opt button { min-width: 52px; min-height: 44px; padding: 6px; border-radius: 10px; }
+
+  /* ---------- app shell ---------- */
+  #top { position: fixed; top: 0; left: 0; right: 0; z-index: 10; height: var(--top); padding-top: env(safe-area-inset-top); background: rgba(0,0,16,0.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
+  #top .wrap { display: flex; align-items: center; gap: 10px; height: 60px; }
+  #me { width: 40px; height: 40px; background: #9bd45c; border-radius: 10px; flex: none; }
+  #pname { font-weight: 700; font-size: 17px; }
+  #lvl { color: var(--dim); font-size: 13px; }
+  #pill { margin-left: auto; display: flex; gap: 8px; align-items: center; background: var(--raised); border: 1px solid #2e1a7a; border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: 15px; color: var(--gold); min-height: 0; }
+  #pill .sep { width: 1px; height: 16px; background: #2e1a7a; }
+  #app { padding: calc(var(--top) + 8px) 0 calc(var(--tabs) + 24px); }
+  #tabs { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; background: rgba(0,0,16,0.96); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); backdrop-filter: blur(8px); }
+  #tabs .wrap { display: flex; padding: 0 4px; }
+  #tabs button { flex: 1; background: none; border: 0; border-radius: 0; color: var(--dim); font-size: 12px; font-weight: 600; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; position: relative; }
+  #tabs button .ic { font-size: 22px; line-height: 1; filter: grayscale(1); opacity: 0.7; }
+  #tabs button.on { color: var(--gold); }
+  #tabs button.on .ic { filter: none; opacity: 1; }
+  #tabs button .dot { position: absolute; top: 10px; left: calc(50% + 10px); width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+  .tab { display: none; }
+  .tab.on { display: block; }
+
+  /* ---------- play ---------- */
+  .coach { display: flex; gap: 12px; align-items: flex-start; background: #26215C; border: 2px solid var(--pop); border-radius: 16px; padding: 14px; margin-top: 12px; animation: pulse 2s ease-in-out infinite; }
+  .coach .n { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--gold); color: #26215C; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .coach b { display: block; font-size: 17px; }
+  .coach .muted { color: #d6d0ff; margin-top: 2px; }
+  @keyframes pulse { 50% { border-color: var(--gold); } }
+  #now .label { color: var(--dim); font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+  #status { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .bar { height: 10px; background: var(--bg); border-radius: 6px; overflow: hidden; margin-top: 12px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--gold); border-radius: 6px; transition: width 0.5s linear; }
+  #timeLeft, #queue { margin-top: 6px; }
+  #nowFind { margin-top: 14px; }
+  .chipsrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip { background: var(--raised); border: 1px solid #2e1a7a; border-radius: 999px; padding: 6px 12px; font-size: 14px; }
+  .chip.hot { border-color: var(--gold); color: var(--gold); }
+  #tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 14px; min-height: 92px; border-radius: 16px; font-weight: 600; position: relative; }
+  .tile .ic { font-size: 26px; line-height: 1.1; }
+  .tile .pl { font-size: 16px; }
+  .tile small { color: var(--dim); font-weight: 500; font-size: 13px; }
+  .tile .tag { position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 800; color: #26215C; background: var(--gold); border-radius: 999px; padding: 2px 8px; }
+  .tile.here { border-color: var(--gold); background: #26215C; }
+  .tile.first { border: 2px solid var(--gold); }
+  #typeBox { margin-top: 10px; }
+  #typeBox .row { display: flex; gap: 8px; }
+  #typeBox input { flex: 1; font-size: 16px; }
+  #toast { position: fixed; left: 50%; bottom: calc(var(--tabs) + 14px); transform: translateX(-50%) translateY(20px); z-index: 20; max-width: min(480px, 92vw); background: var(--gold); color: #26215C; font-weight: 700; padding: 12px 18px; border-radius: 14px; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; text-align: center; }
+  #toast.on { opacity: 1; transform: translateX(-50%); }
+
+  /* ---------- map ---------- */
+  #map { display: block; width: 100%; aspect-ratio: 48 / 30; background: #9bd45c; border-radius: 14px; margin-top: 12px; touch-action: manipulation; }
+  #where { margin-top: 10px; font-size: 16px; }
+  #findMsg, #findMsg2 { margin-top: 8px; text-align: center; }
+
+  /* ---------- raffle ---------- */
+  #count { font-family: var(--pixel); font-size: 56px; font-weight: 800; color: var(--gold); text-shadow: 3px 3px 0 #000; line-height: 1.1; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .stat { background: var(--raised); border-radius: 14px; padding: 12px; }
+  .stat span { color: var(--dim); font-size: 13px; }
+  .stat b { display: block; font-size: 26px; }
+  .how { margin: 0; padding-left: 20px; }
+  .how li { margin: 6px 0; }
+  #code { font-family: var(--pixel); font-size: 40px; font-weight: 800; letter-spacing: 6px; text-align: center; color: var(--gold); background: var(--bg); border: 2px dashed var(--gold); border-radius: 14px; padding: 12px 4px; margin: 12px 0; }
+  #winCard { border: 2px solid var(--gold); }
+
+  /* ---------- me ---------- */
+  #meBig { display: flex; gap: 14px; align-items: center; }
+  #me2 { width: 80px; height: 80px; background: #9bd45c; border-radius: 18px; flex: none; }
+  .xpbar { height: 8px; background: var(--bg); border-radius: 6px; overflow: hidden; margin-top: 8px; }
+  .xpbar i { display: block; height: 100%; background: var(--pop); }
+  ul.list { margin: 0; padding: 0; list-style: none; }
+  ul.list li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  ul.list li:last-child { border: 0; }
+
+  /* ---------- winner takeover ---------- */
+  #winPop { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,16,0.95); display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  #winPop .box { max-width: 420px; }
+  #winPop .star { font-family: var(--pixel); color: var(--pop); font-size: 22px; letter-spacing: 4px; }
+  #winPop h3 { font-size: 30px; margin: 10px 0; color: var(--gold); }
 </style>
 </head>
 <body>
-<main>
-  <h1>POD TOWN</h1>
 
-  <!-- join -->
-  <section id="join" class="hide">
-    <p class="dim">Make a character, send it around town, and earn tickets for the hourly raffle.</p>
-    <div class="card">
-      <h2>Your character</h2>
-      <div id="creator">
-        <canvas id="preview" width="16" height="16"></canvas>
-        <div class="opts" id="opts"></div>
-      </div>
-      <button class="ghost" id="shuffle" style="margin-top:10px;width:100%">🎲 Randomize</button>
+<!-- join: two short steps, look then name -->
+<section id="join" class="hide">
+  <div class="wrap">
+    <h1>POD TOWN</h1>
+    <div class="steps"><i id="s1" class="on"></i><i id="s2"></i></div>
+    <div id="joinLook">
+      <h2>Make your character</h2>
+      <canvas id="preview" width="16" height="16"></canvas>
+      <div class="opts" id="opts"></div>
+      <button id="shuffle" style="width:100%;margin-top:10px">🎲 Surprise me</button>
+      <button class="primary" id="next" style="margin-top:14px">Next</button>
     </div>
-    <div class="card">
-      <label for="name">Character name (shown on the big screen)</label>
-      <input id="name" type="text" maxlength="12" autocomplete="nickname" autocapitalize="words" placeholder="2-12 letters">
-      <p class="dim">No email or sign-up needed. Raffle winners collect their prize at the Runpod booth.</p>
+    <div id="joinName" class="hide">
+      <h2>What's their name?</h2>
+      <p class="muted">It shows over your character on the big screen.</p>
+      <input id="name" type="text" maxlength="12" autocomplete="nickname" autocapitalize="words" placeholder="2 to 12 letters">
       <div class="err" id="joinErr"></div>
-      <button class="big" id="go">Move into town</button>
+      <button class="primary" id="go">Move into town</button>
+      <button class="link" id="back" style="width:100%">Back to your look</button>
+      <p class="muted" style="text-align:center">No email or sign-up. Raffle winners collect their prize at the Runpod booth.</p>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- game -->
-  <section id="game" class="hide">
-    <div class="card" id="head">
-      <canvas id="me" width="16" height="16"></canvas>
-      <div>
-        <b id="pname"></b>
-        <div class="stats"><span>Lv <b id="lv"></b></span><span>🪙 <b id="coins"></b></span><span>🎟 <b id="tix"></b></span></div>
-        <div class="dim" id="xp"></div>
+<!-- game -->
+<header id="top" class="hide">
+  <div class="wrap">
+    <canvas id="me" width="16" height="16"></canvas>
+    <div><div id="pname"></div><div id="lvl"></div></div>
+    <button id="pill" aria-label="Your tickets and time to the next raffle"><span>🎟 <span id="tix">0</span></span><span class="sep"></span><span>⏱ <span id="count2">--:--</span></span></button>
+  </div>
+</header>
+
+<main id="app" class="hide">
+  <div class="wrap">
+
+    <!-- PLAY -->
+    <section class="tab on" id="tab-play">
+      <div id="coach" class="coach hide"><div class="n" id="coachN">1</div><div><b id="coachT"></b><div class="muted" id="coachD"></div><button class="link hide" id="coachOk">Got it</button></div></div>
+
+      <div class="card" id="now">
+        <div class="label">Right now</div>
+        <div id="status"></div>
+        <div class="bar" id="barWrap"><i id="bar"></i></div>
+        <div class="muted" id="timeLeft"></div>
+        <div class="muted" id="queue"></div>
+        <button class="pink" id="nowFind">📍 Find me on the big screen</button>
+        <div class="muted" id="findMsg"></div>
+        <div class="chipsrow" id="chipsrow"></div>
       </div>
-    </div>
 
-    <div class="card" id="win">
-      <h2>★ You won the raffle! ★</h2>
-      <p id="winText"></p>
-      <div id="code"></div>
-      <p class="dim" id="winHelp"></p>
-    </div>
-
-    <div class="card">
-      <h2>Right now</h2>
-      <div id="status"></div>
-      <div class="bar" id="barWrap"><i id="bar"></i></div>
-      <div class="dim" id="timeLeft"></div>
-      <div class="dim" id="queue"></div>
-      <canvas id="map" aria-label="Map of Pod Town showing where your character is"></canvas>
-      <div class="dim" id="where"></div>
-      <div class="dim hide" id="weather"></div>
-      <div class="dim hide" id="season"></div>
-      <button class="gold" id="findme" style="width:100%;margin-top:10px">📍 Find me on the big screen</button>
-      <div class="dim" id="findmeMsg"></div>
-    </div>
-
-    <div class="card">
-      <h2>Tell your character what to do</h2>
-      <div class="row">
-        <textarea id="prompt" maxlength="200" placeholder="e.g. train a model, then fish for data"></textarea>
-        <button id="send">Go</button>
+      <h2 id="pickTitle">Where should they go?</h2>
+      <div id="tiles"></div>
+      <button class="link" id="typeToggle" style="width:100%">⌨️ Or type what to do</button>
+      <div id="typeBox" class="hide">
+        <div class="row"><input id="prompt" type="text" maxlength="200" placeholder="Train a model, then fish for data"><button id="send">Go</button></div>
       </div>
-      <div id="reply"></div>
-      <div class="chips" id="chips"></div>
-      <button class="ghost" id="stop" style="width:100%;margin-top:8px">✋ Stop and wander</button>
-    </div>
+      <button class="link" id="stop" style="width:100%;color:var(--dim)">✋ Stop and wander</button>
+    </section>
 
-    <div class="card">
-      <h2>Next raffle in <span id="count">--:--</span></h2>
-      <p class="dim">Prize: <span id="prize"></span>. Each finished activity earns tickets; more tickets, better odds. Tickets reset every hour.</p>
-      <p id="project" class="hide"></p>
-    </div>
+    <!-- MAP -->
+    <section class="tab" id="tab-map">
+      <h2>Where you are</h2>
+      <canvas id="map" aria-label="Map of Pod Town showing where your character is. Tap a place to go there."></canvas>
+      <div id="where"></div>
+      <p class="muted">Tap a place on the map to send your character there.</p>
+      <button class="pink" id="mapFind">📍 Find me on the big screen</button>
+      <div class="muted" id="findMsg2"></div>
+    </section>
 
-    <div class="card"><h2>Diary</h2><ul id="log"></ul></div>
-    <div class="card"><h2>Collection</h2><ul id="coll"></ul></div>
+    <!-- RAFFLE -->
+    <section class="tab" id="tab-raffle">
+      <div class="card hide" id="winCard">
+        <h2 style="margin-top:0">🏆 <span id="winText"></span></h2>
+        <div id="code"></div>
+        <p class="muted" id="winHelp"></p>
+      </div>
+      <div class="card" style="text-align:center">
+        <div class="muted">Next raffle in</div>
+        <div id="count">--:--</div>
+        <div>Prize: <b id="prize"></b></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>Your tickets</span><b id="tix2">0</b></div>
+        <div class="stat"><span>Players entered</span><b id="entrants">0</b></div>
+      </div>
+      <div class="card">
+        <b>How it works</b>
+        <ol class="how muted">
+          <li>Send your character to a place. Each finished activity earns tickets.</li>
+          <li>More tickets, better odds. Every hour one player wins.</li>
+          <li>If you win, your claim code shows up here. Bring it to the Runpod booth.</li>
+        </ol>
+      </div>
+      <div class="card hide" id="projCard"><b>🏗️ Town project</b><p class="muted" id="project"></p></div>
+    </section>
 
-    <div class="card">
-      <h2>Change outfit</h2>
+    <!-- ME -->
+    <section class="tab" id="tab-me">
+      <div class="card">
+        <div id="meBig"><canvas id="me2" width="16" height="16"></canvas><div style="flex:1"><b id="pname2" style="font-size:20px"></b><div class="muted" id="xp"></div><div class="xpbar"><i id="xpbar"></i></div></div></div>
+        <div class="stats"><div class="stat"><span>Level</span><b id="lv"></b></div><div class="stat"><span>Coins</span><b id="coins"></b></div></div>
+      </div>
+      <h2>Outfit</h2>
       <div class="opts" id="opts2"></div>
-      <p class="dim">Unlock more accessories at the Swag Shop (25 coins each).</p>
-    </div>
-    <p class="dim" id="who" style="text-align:center;margin-top:16px"></p>
-  </section>
+      <p class="muted">Get more accessories at the Swag Shop (25 coins each).</p>
+      <h2>Collection</h2>
+      <div class="card"><ul class="list" id="coll"></ul></div>
+      <h2>Diary</h2>
+      <div class="card"><ul class="list" id="log"></ul></div>
+      <p class="muted" style="text-align:center;margin-top:18px">Your character is saved on this phone. Keep using this browser to come back to it.</p>
+    </section>
+  </div>
 </main>
+
+<nav id="tabs" class="hide" aria-label="Sections">
+  <div class="wrap">
+    <button data-tab="play" class="on"><span class="ic">🎮</span>Play</button>
+    <button data-tab="map"><span class="ic">🗺️</span>Map</button>
+    <button data-tab="raffle"><span class="ic">🎟️</span>Raffle<i class="dot hide" id="raffleDot"></i></button>
+    <button data-tab="me"><span class="ic">🙂</span>Me</button>
+  </div>
+</nav>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="winPop" class="hide" role="dialog" aria-modal="true" aria-labelledby="winPopT">
+  <div class="box">
+    <div class="star">★ RAFFLE WINNER ★</div>
+    <h3 id="winPopT"></h3>
+    <div id="code2" style="font-family:var(--pixel);font-size:40px;font-weight:800;letter-spacing:6px;color:var(--gold);border:2px dashed var(--gold);border-radius:14px;padding:12px 4px;margin:16px 0"></div>
+    <p class="muted" id="winPopHelp"></p>
+    <button class="primary" id="winPopOk">Got it</button>
+  </div>
+</div>
 
 <script src="/art.js"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
   const KEY = "podtown-token";
+  const SEEN = "podtown-coach"; // which first-time steps this phone has done
   const rnd = (n) => Math.floor(Math.random() * n);
   let token = null;
   try { token = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
   let me = null, offset = 0, busy = false;
   let look = { skin: rnd(4), hair: rnd(6), hairColor: rnd(6), shirt: rnd(8), pants: rnd(4), acc: "none" };
+  let coach = {};
+  try { coach = JSON.parse(localStorage.getItem(SEEN) || "{}"); } catch (e) { /* fresh */ }
+  const markCoach = (k) => { coach[k] = 1; try { localStorage.setItem(SEEN, JSON.stringify(coach)); } catch (e) { /* ignore */ } };
 
   async function api(path, data) {
     const res = await fetch(path, {
@@ -171,7 +294,15 @@
     Art.drawSprite(c, 0, 0, lk, 0, 0);
   }
 
-  // ----- outfit pickers (used by both join and in-game) -----
+  let toastTimer = null;
+  function toast(text) {
+    $("toast").textContent = text;
+    $("toast").classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $("toast").classList.remove("on"), 3200);
+  }
+
+  // ----- outfit pickers (used by both join and the Me tab) -----
   function buildOpts(el, accs, onChange) {
     const defs = [
       ["Skin", "skin", Art.SKIN.length, (i) => "Tone " + (i + 1)],
@@ -184,11 +315,11 @@
     el.textContent = "";
     for (const [title, key, n, nameOf] of defs) {
       const row = document.createElement("div"); row.className = "opt";
-      const prev = document.createElement("button"); prev.className = "ghost"; prev.textContent = "◀"; prev.setAttribute("aria-label", "Previous " + title);
-      const next = document.createElement("button"); next.className = "ghost"; next.textContent = "▶"; next.setAttribute("aria-label", "Next " + title);
+      const prev = document.createElement("button"); prev.textContent = "◀"; prev.setAttribute("aria-label", "Previous " + title);
+      const next = document.createElement("button"); next.textContent = "▶"; next.setAttribute("aria-label", "Next " + title);
       const text = document.createElement("span");
       const idx = () => (key === "acc" ? Math.max(0, accs.indexOf(look.acc)) : look[key]);
-      const show = () => { text.textContent = title + ": " + nameOf(idx()); };
+      const show = () => { text.innerHTML = ""; const b = document.createElement("b"); b.textContent = title + " "; text.append(b, nameOf(idx())); };
       const move = (d) => {
         const i = (idx() + d + n) % n;
         look[key] = key === "acc" ? accs[i] : i;
@@ -199,26 +330,35 @@
     }
   }
 
-  // ----- join -----
+  // ----- join: look, then name -----
   function showJoin() {
-    $("join").classList.remove("hide"); $("game").classList.add("hide");
+    $("join").classList.remove("hide");
+    for (const id of ["top", "app", "tabs"]) $(id).classList.add("hide");
     const free = ["none", "glasses", "cap", "bow"];
     const redraw = () => paint($("preview"), look);
     const rebuild = () => { buildOpts($("opts"), free, redraw); redraw(); };
     rebuild();
+    const step = (n) => {
+      $("joinLook").classList.toggle("hide", n !== 1); $("joinName").classList.toggle("hide", n !== 2);
+      $("s2").classList.toggle("on", n === 2);
+      if (n === 2) setTimeout(() => $("name").focus(), 50);
+      window.scrollTo(0, 0);
+    };
     $("shuffle").onclick = () => {
       look = { skin: rnd(4), hair: rnd(6), hairColor: rnd(6), shirt: rnd(8), pants: rnd(4), acc: free[rnd(free.length)] };
       rebuild();
     };
+    $("next").onclick = () => step(2);
+    $("back").onclick = () => step(1);
+    $("name").onkeydown = (e) => { if (e.key === "Enter") $("go").onclick(); };
     $("go").onclick = async () => {
       $("joinErr").textContent = "";
       $("go").disabled = true;
       try {
-        const out = await api("/api/register", {
-          name: $("name").value, look,
-        });
+        const out = await api("/api/register", { name: $("name").value, look });
         token = out.token;
         try { localStorage.setItem(KEY, token); } catch (e) { /* keep in memory */ }
+        coach = {}; markCoach("joined"); // a new character gets the first-time steps again
         startGame(out.me);
       } catch (e) {
         $("joinErr").textContent = e.message;
@@ -226,51 +366,117 @@
         $("go").disabled = false;
       }
     };
+    step(1);
   }
 
+  // ----- tabs -----
+  function showTab(name) {
+    for (const b of $("tabs").querySelectorAll("button")) b.classList.toggle("on", b.dataset.tab === name);
+    for (const s of document.querySelectorAll(".tab")) s.classList.toggle("on", s.id === "tab-" + name);
+    if (name === "raffle") { markCoach("raffle"); renderCoach(); }
+    window.scrollTo(0, 0);
+  }
+  for (const b of document.querySelectorAll("#tabs button")) b.onclick = () => showTab(b.dataset.tab);
+  $("pill").onclick = () => showTab("raffle");
+
+  // ----- first-time steps -----
+  // Three short steps for a new player, each gone once it's done:
+  // send your character somewhere, spot it on the big screen, check the raffle.
+  function renderCoach() {
+    const nm = me ? me.name : "your character";
+    let s = null;
+    if (!coach.sent) s = [1, `Pick a place to send ${nm}`, "Tap any place below. They'll walk there on the big screen."];
+    else if (!coach.found) s = [2, `Now look up at the big screen!`, `Tap "Find me" and a pink arrow points ${nm} out.`];
+    else if (!coach.raffle) s = [3, "Every activity earns raffle tickets", "One player wins every hour. Check the Raffle tab to see your odds."];
+    $("coach").classList.toggle("hide", !s);
+    $("raffleDot").classList.toggle("hide", !(coach.found && !coach.raffle));
+    if (s) { $("coachN").textContent = s[0]; $("coachT").textContent = s[1]; $("coachD").textContent = s[2]; $("coachOk").classList.toggle("hide", s[0] !== 3); }
+    for (const t of $("tiles").children) t.classList.toggle("first", !coach.sent);
+  }
+  $("coachOk").onclick = () => { markCoach("raffle"); renderCoach(); };
+
   // ----- game -----
-  let optsBuiltFor = "";
+  let optsBuiltFor = "", tilesKey = "";
+  const placeOf = (actId) => {
+    const loc = world?.acts?.[actId]?.loc;
+    const l = loc && world.labels.find((x) => x.id === loc);
+    return l ? l.name : "";
+  };
   function render(m) {
     me = m; offset = m.now - Date.now(); look = { ...m.look };
-    paint($("me"), m.look);
-    $("pname").textContent = m.name;
-    $("lv").textContent = m.level; $("coins").textContent = m.coins; $("tix").textContent = m.tickets;
-    $("xp").textContent = `${m.xp} / ${m.nextLevelXp} XP to next level` + (m.buff ? " · ☕ speedy" : "");
+    paint($("me"), m.look); paint($("me2"), m.look);
+    $("pname").textContent = m.name; $("pname2").textContent = m.name;
+    $("lvl").textContent = `Level ${m.level}` + (m.buff ? " · ☕ speedy" : "");
+    $("lv").textContent = m.level; $("coins").textContent = m.coins;
+    $("tix").textContent = m.tickets; $("tix2").textContent = m.tickets; $("entrants").textContent = m.entrants ?? "-";
+    $("xp").textContent = `${m.xp} / ${m.nextLevelXp} XP to level ${m.level + 1}`;
+    $("xpbar").style.width = Math.min(100, (m.xp / m.nextLevelXp) * 100) + "%";
+    $("pickTitle").textContent = m.act || m.queue.length ? "What next? Pick another place" : `Where should ${m.name} go?`;
+
+    // right now
     $("status").textContent = (m.act ? m.act.icon + " " : "") + m.status;
     $("barWrap").classList.toggle("hide", !m.act);
     $("queue").textContent = m.queue.length ? "Up next: " + m.queue.join(" → ") : "";
-    $("where").textContent = m.pos ? describeWhere(m.pos) : "";
-    $("season").classList.toggle("hide", !m.season);
-    if (m.season) $("season").textContent = `${m.season.icon} It's ${m.season.name.toLowerCase()} in Pod Town! Limited time: ${m.season.actName}.`;
-    $("weather").classList.toggle("hide", !m.weather);
+    $("stop").classList.toggle("hide", !m.act && !m.queue.length);
+    const chips = [];
     if (m.weather) {
       const boosted = m.weather.boost && m.acts.find((a) => a.id === m.weather.boost);
-      $("weather").textContent = `${m.weather.icon} ${m.weather.text}.` + (boosted ? ` ${boosted.short} earns double tickets right now!` : "");
+      chips.push([`${m.weather.icon} ${m.weather.c[0].toUpperCase() + m.weather.c.slice(1)}${m.weather.where ? " in " + m.weather.where : ""}`, false]);
+      if (boosted) chips.push([`${boosted.icon} ${boosted.short}: 2× tickets now`, true]);
     }
-    $("prize").textContent = m.prize;
-    $("project").classList.toggle("hide", !m.town);
-    if (m.town) $("project").textContent = projectText(m.town.leaders, m.town.mine || []);
-    $("who").textContent = "Your character is saved on this phone. Keep using this browser to come back to it.";
+    if (m.season) chips.push([`${m.season.icon} Limited time: ${m.season.actName.replace(/^\S+\s/, "")}`, true]);
+    $("chipsrow").innerHTML = "";
+    for (const [text, hot] of chips) { const c = document.createElement("span"); c.className = "chip" + (hot ? " hot" : ""); c.textContent = text; $("chipsrow").append(c); }
 
-    // rebuilt when the weather changes which activity earns double tickets
-    const chipsKey = m.acts.map((a) => a.id + a.tickets).join(",");
-    if ($("chips").dataset.key !== chipsKey) {
-      $("chips").dataset.key = chipsKey;
-      $("chips").textContent = "";
+    // place tiles: rebuilt when the choice of activities or their rewards change
+    const key = m.acts.map((a) => a.id + a.tickets).join(",") + (world ? "w" : "");
+    if (key !== tilesKey) {
+      tilesKey = key;
+      $("tiles").textContent = "";
       for (const a of m.acts) {
-        const b = document.createElement("button"); b.className = "ghost";
-        b.textContent = a.icon + " " + a.short;
-        const s = document.createElement("small"); s.textContent = `${a.mins} min · 🎟${a.tickets}` + (a.boost ? " ×2 now" : "");
-        b.append(s);
+        const b = document.createElement("button"); b.className = "tile"; b.dataset.act = a.id;
+        b.innerHTML = `<span class="ic"></span><span class="pl"></span><small></small>`;
+        b.querySelector(".ic").textContent = a.icon;
+        // a limited-time activity leads with what it is; the rest lead with the place
+        const seasonal = !!world?.acts?.[a.id]?.season;
+        b.querySelector(".pl").textContent = seasonal ? a.short : placeOf(a.id) || a.short;
+        b.querySelector("small").textContent = `${seasonal ? placeOf(a.id) : a.short} · ${a.mins} min · 🎟 ${a.tickets}`;
+        if (a.boost || world?.acts?.[a.id]?.season) { const t = document.createElement("span"); t.className = "tag"; t.textContent = a.boost ? "2×" : "NEW"; b.append(t); }
         b.onclick = () => command({ steps: [a.id] });
-        $("chips").append(b);
+        $("tiles").append(b);
+      }
+    }
+    for (const t of $("tiles").children) t.classList.toggle("here", !!m.act && t.dataset.act === m.act.id);
+
+    // raffle
+    $("prize").textContent = m.prize;
+    $("projCard").classList.toggle("hide", !m.town);
+    if (m.town) $("project").textContent = projectText(m.town.leaders, m.town.mine || []);
+    const win = m.wins.find((w) => w.status === "unclaimed") || m.wins.find((w) => w.status === "given");
+    $("winCard").classList.toggle("hide", !win);
+    if (win) {
+      const pending = win.status === "unclaimed";
+      $("winText").textContent = pending ? `You won ${win.prize}!` : `Prize collected: ${win.prize}. Enjoy!`;
+      $("code").classList.toggle("hide", !pending);
+      $("code").textContent = win.code;
+      const by = new Date(win.claimBy).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      $("winHelp").textContent = pending ? `Show this code at the Runpod booth before ${by} to collect your prize.` : "";
+      // a new win takes over the screen once, so nobody misses it
+      let shown = "";
+      try { shown = localStorage.getItem("podtown-winseen") || ""; } catch (e) { /* ignore */ }
+      if (pending && shown !== win.code) {
+        $("winPopT").textContent = `You won ${win.prize}!`;
+        $("code2").textContent = win.code;
+        $("winPopHelp").textContent = `Show this code at the Runpod booth before ${by}. It's also saved in the Raffle tab.`;
+        $("winPop").classList.remove("hide");
+        $("winPopOk").onclick = () => { try { localStorage.setItem("podtown-winseen", win.code); } catch (e) { /* ignore */ } $("winPop").classList.add("hide"); showTab("raffle"); };
       }
     }
 
+    // me
     const logEl = $("log"); logEl.textContent = "";
     for (const e of m.log) { const li = document.createElement("li"); li.textContent = e.text; logEl.append(li); }
     if (!m.log.length) { const li = document.createElement("li"); li.textContent = "Nothing yet. Send your character somewhere!"; logEl.append(li); }
-
     const it = m.items, coll = $("coll"); coll.textContent = "";
     const data = Object.entries(it.data).map(([k, v]) => `${k} ×${v}`).join(", ");
     const rows = [
@@ -279,34 +485,24 @@
       ["🕹️ Best benchmark", it.bench ? it.bench.toLocaleString() : "none yet"], ["🏖️ Sandbox experiments", it.sand], ["📡 Connections", it.peers],
     ];
     for (const [k, v] of rows) { const li = document.createElement("li"); li.textContent = `${k}: ${v}`; coll.append(li); }
-
-    const key = m.unlocked.join(",");
-    if (key !== optsBuiltFor) {
-      optsBuiltFor = key;
+    const ukey = m.unlocked.join(",");
+    if (ukey !== optsBuiltFor) {
+      optsBuiltFor = ukey;
       buildOpts($("opts2"), m.unlocked, async () => {
-        paint($("me"), look);
+        paint($("me"), look); paint($("me2"), look);
         try { await api("/api/look", { look }); } catch (e) { /* next poll resyncs */ }
       });
     }
-
-    const win = m.wins.find((w) => w.status === "unclaimed") || m.wins.find((w) => w.status === "given");
-    $("win").style.display = win ? "block" : "none";
-    if (win) {
-      const pending = win.status === "unclaimed";
-      $("winText").textContent = pending ? `You won ${win.prize}!` : `Prize collected: ${win.prize}. Enjoy!`;
-      $("code").classList.toggle("hide", !pending);
-      $("code").textContent = win.code;
-      $("winHelp").textContent = pending
-        ? `Show this code at the Runpod booth before ${new Date(win.claimBy).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} to collect your prize.`
-        : "";
-    }
+    $("where").textContent = m.pos ? describeWhere(m.pos) : "";
+    if (!coach.sent && (m.log.length || m.act || m.queue.length)) markCoach("sent"); // they've played before
+    renderCoach();
   }
 
   // "Town project": the place where players earn the most tickets this hour
   // gets upgraded on the big screen at the raffle.
   function projectText(leaders, mine) {
     const name = (id) => world?.labels.find((l) => l.id === id)?.name || id;
-    const intro = "🏗️ Town project: the busiest place gets upgraded at the raffle, and its builders get their names on the big screen. ";
+    const intro = "The busiest place gets upgraded at the raffle, and its builders get their names on the big screen. ";
     if (!leaders.length) return intro + "Nobody has started yet, so your next activity takes the lead!";
     const [a, b] = leaders;
     const race = `${name(a[0])} leads with ${a[1]} 🎟` + (b ? `, then ${name(b[0])} with ${b[1]} 🎟.` : ".");
@@ -321,14 +517,18 @@
     const now = Date.now() + offset;
     const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
     $("count").textContent = fmt(me.nextRaffle - now);
+    $("count2").textContent = fmt(me.nextRaffle - now);
     const wait = (me.pingReadyAt || 0) - now;
-    $("findme").disabled = wait > 0;
-    $("findme").textContent = wait > 0 ? `📍 Find me again in ${Math.ceil(wait / 1000)}s` : "📍 Find me on the big screen";
-    if (wait <= 0) $("findmeMsg").textContent = "";
+    for (const id of ["nowFind", "mapFind"]) {
+      $(id).disabled = wait > 0;
+      $(id).textContent = wait > 0 ? `📍 Find me again in ${Math.ceil(wait / 1000)}s` : "📍 Find me on the big screen";
+    }
+    if (wait <= 0) { $("findMsg").textContent = ""; $("findMsg2").textContent = ""; }
     if (me.act) {
       const prog = Math.max(0, Math.min(1, (now - me.act.start) / (me.act.end - me.act.start)));
       $("bar").style.width = (prog * 100).toFixed(1) + "%";
-      $("timeLeft").textContent = fmt(me.act.end - now) + " left. Feel free to wander off and come back!";
+      const t = me.acts.find((a) => a.id === me.act.id)?.tickets;
+      $("timeLeft").textContent = `${fmt(me.act.end - now)} left` + (t ? ` · +${t} 🎟 when done` : "") + ". You can put your phone away and come back.";
     } else {
       $("timeLeft").textContent = "";
     }
@@ -342,6 +542,7 @@
     try {
       world = await api("/api/world");
       townImg = Art.bakeWorld(world, 0);
+      if (me) render(me); // tiles can now show place names
     } catch (e) { setTimeout(loadMap, 3000); }
   }
 
@@ -359,7 +560,6 @@
       if (b) return `You're inside ${b.id === "lab" ? "" : "the "}${b.name}, ${screenArea(b.x + b.w / 2, b.y + b.h / 2)} of the big screen.`;
     }
     // nearest place by distance to the area it covers, not to its sign
-    // (building signs sit on the roof, far from someone standing by the door)
     let near = null, best = Infinity;
     for (const l of world.labels) {
       const a = l.box;
@@ -370,12 +570,29 @@
     return `You're ${best <= 1 ? "at" : "near"} ${place}, ${screenArea(pos.x, pos.y)} of the big screen.`;
   }
 
+  // tap a place on the map to go there
+  $("map").addEventListener("click", (e) => {
+    if (!world || !me) return;
+    const r = $("map").getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * world.w, y = ((e.clientY - r.top) / r.height) * world.h;
+    let hit = null, best = Infinity;
+    for (const l of world.labels) {
+      const a = l.box;
+      const d = Math.hypot(Math.max(a.x0 - x, 0, x - (a.x1 + 1)), Math.max(a.y0 - y, 0, y - (a.y1 + 1)));
+      if (d < best) { best = d; hit = l; }
+    }
+    if (!hit || best > 2) { toast("Tap a building or a place to go there."); return; }
+    const act = me.acts.find((a) => world.acts[a.id]?.loc === hit.id && !world.acts[a.id]?.season) ||
+      me.acts.find((a) => world.acts[a.id]?.loc === hit.id);
+    if (act) command({ steps: [act.id] });
+  });
+
   let lastFrame = 0;
   function drawMap(t) {
     requestAnimationFrame(drawMap);
     const dt = Math.min(0.1, (t - lastFrame) / 1000);
     lastFrame = t;
-    if (!townImg || !me || !me.pos || document.hidden) return;
+    if (!townImg || !me || !me.pos || document.hidden || !$("tab-map").classList.contains("on")) return;
     const c = $("map");
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const W = Math.round(c.clientWidth * dpr), H = Math.round((W * world.h) / world.w);
@@ -391,7 +608,7 @@
     // glide between polls (the phone only hears your position every 2.5s)
     const pos = me.pos;
     if (mx === null || Math.abs(pos.x - mx) + Math.abs(pos.y - my) > 12) { mx = pos.x; my = pos.y; }
-    const step = 3 * dt; // ~1 tile per 350ms, like the server
+    const step = 3 * dt;
     mx += Math.max(-step, Math.min(step, pos.x - mx));
     my += Math.max(-step, Math.min(step, pos.y - my));
 
@@ -415,24 +632,38 @@
     ctx.strokeStyle = `rgba(252,177,255,${1 - ph})`;
     ctx.lineWidth = Math.max(2, u * 0.25);
     ctx.beginPath(); ctx.arc(cx, cy, u * (0.8 + ph * 2.6), 0, Math.PI * 2); ctx.stroke();
-    // your own character, drawn bigger than a tile so you can recognise it
-    const s = u * 2.2;
+    const s = u * 2.2; // your own character, drawn bigger than a tile so you can recognise it
     ctx.drawImage(Art.spriteSheet(me.look), 0, 0, 16, 16, Math.round(cx - s / 2), Math.round(cy - s * 0.6), Math.round(s), Math.round(s));
   }
 
   async function command(data) {
     if (busy) return;
-    busy = true; $("send").disabled = true; $("reply").textContent = "Thinking…";
+    busy = true; $("send").disabled = true;
     try {
       const out = await api("/api/command", data);
-      $("reply").textContent = out.reply;
+      toast(out.reply);
       if (data.text && out.steps.length) $("prompt").value = "";
+      if (out.steps.length && out.steps[0] !== "stop") markCoach("sent");
       render(out.me);
+      window.scrollTo({ top: 0, behavior: "smooth" }); // back to "Right now"
     } catch (e) {
-      $("reply").textContent = e.message;
+      toast(e.message);
     } finally {
       busy = false; $("send").disabled = false;
     }
+  }
+
+  async function findMe(msgEl) {
+    for (const id of ["nowFind", "mapFind"]) $(id).disabled = true;
+    try {
+      const out = await api("/api/ping", {});
+      markCoach("found");
+      render(out.me);
+      $(msgEl).textContent = "Look at the big screen: a pink arrow is pointing at you.";
+    } catch (e) {
+      $(msgEl).textContent = e.message;
+    }
+    tickClock();
   }
 
   async function poll() {
@@ -443,37 +674,31 @@
     setTimeout(poll, 2500);
   }
 
-  let mapStarted = false;
+  let started = false;
   function startGame(m) {
-    $("join").classList.add("hide"); $("game").classList.remove("hide");
+    $("join").classList.add("hide");
+    for (const id of ["top", "app", "tabs"]) $(id).classList.remove("hide");
+    showTab("play");
     render(m);
-    if (!mapStarted) {
-      mapStarted = true;
-      loadMap().then(() => { if (me) $("where").textContent = describeWhere(me.pos); });
+    if (!started) {
+      started = true;
+      loadMap();
       requestAnimationFrame(drawMap);
+      $("send").onclick = () => { const text = $("prompt").value.trim(); if (text) command({ text }); };
+      $("prompt").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); $("send").onclick(); } };
+      $("typeToggle").onclick = () => { $("typeBox").classList.toggle("hide"); if (!$("typeBox").classList.contains("hide")) $("prompt").focus(); };
+      $("stop").onclick = () => command({ steps: ["stop"] });
+      $("nowFind").onclick = () => findMe("findMsg");
+      $("mapFind").onclick = () => findMe("findMsg2");
+      setTimeout(poll, 2500);
     }
-    $("send").onclick = () => { const text = $("prompt").value.trim(); if (text) command({ text }); };
-    $("prompt").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").onclick(); } };
-    $("stop").onclick = () => command({ steps: ["stop"] });
-    $("findme").onclick = async () => {
-      $("findme").disabled = true;
-      try {
-        const out = await api("/api/ping", {});
-        render(out.me);
-        $("findmeMsg").textContent = "Look at the big screen: your character has a pink arrow over it.";
-      } catch (e) {
-        $("findmeMsg").textContent = e.message;
-      }
-      tickClock();
-    };
-    setTimeout(poll, 2500);
   }
 
   setInterval(tickClock, 500);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && token && me) api("/api/me").then(render).catch(() => {}); });
 
   if (token) {
-    api("/api/me").then(startGame).catch((e) => {
+    api("/api/me").then((m) => { markCoach("joined"); startGame(m); }).catch((e) => {
       if (e.status === 401) { try { localStorage.removeItem(KEY); } catch (x) { /* ignore */ } token = null; }
       showJoin();
     });

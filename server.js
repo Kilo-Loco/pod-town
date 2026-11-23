@@ -168,7 +168,7 @@ setInterval(tick, TICK_MS);
 const initMsg = JSON.stringify({
   w: world.W, h: world.H, grid: world.grid, buildings: world.BUILDINGS,
   labels: Object.entries(world.locs).map(([id, l]) => ({ id, name: l.name, indoor: l.indoor, ...l.label, box: areaOf(id, l) })),
-  acts: Object.fromEntries(Object.entries(ACTS).map(([id, a]) => [id, { icon: a.icon, loc: a.loc }])),
+  acts: Object.fromEntries(Object.entries(ACTS).map(([id, a]) => [id, { icon: a.icon, loc: a.loc, season: a.season || null }])),
   tickMs: TICK_MS, joinUrl: JOIN_URL, prize: cfg.rafflePrize, raffleMs: sim.raffleMs,
 });
 
@@ -220,6 +220,7 @@ function meView(p) {
     wins: sim.winsFor(p),
     nextRaffle: sim.nextRaffle(now),
     prize: cfg.rafflePrize,
+    entrants: sim.entrants(),
     town: sim.town.project(p.id),
     weather: sim.weather.feed(),
     season: sim.season.feed(),
