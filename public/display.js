@@ -1,6 +1,6 @@
 // Big-screen display: renders the town and everyone in it from server snapshots.
 (function () {
-  const { TS, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior } = Art;
+  const { TS, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior, drawUpgrades, drawRoofUpgrades, drawLandmarkFx, inkBox, statueSprite, STATUE_SPOTS } = Art;
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
   const $ = (id) => document.getElementById(id);
@@ -18,6 +18,41 @@
   const rooms = {};
   const seatOf = new Map();
   const SPOT_MS = 2200; // how long the roll call stays on each person
+
+  // Town upgrades and winner statues (see game/town.js). Features that are
+  // switched off on the admin page are simply missing from the feed.
+  let town = {}, decor = null, roofs = null, decorKey = "";
+  // A brand-new upgrade stays hidden under the raffle screen, then drops into
+  // place with a puff of dust once the screen closes, and a gold arrow points
+  // at it for a few seconds. reveal: { up, piece, box, start } (start is 0
+  // while the raffle screen is still up).
+  let reveal = null;
+  const DROP_MS = 1000, ARROW_MS = 9000;
+  /** "built by Ana + 9 others" (top builder only, to keep the screen short). */
+  const builtBy = (up) => !up.by?.length ? "" :
+    "built by " + up.by[0] + (up.by.length + up.more > 1 ? ` + ${up.by.length + up.more - 1} other${up.by.length + up.more > 2 ? "s" : ""}` : "");
+
+  /** Rebake the upgrade layer, leaving out a piece that is waiting to drop in. */
+  function refreshDecor() {
+    const hide = reveal && Date.now() - (reveal.start || Infinity) < DROP_MS ? reveal.up : null;
+    const key = JSON.stringify([town.lv || null, hide && [hide.loc, hide.level]]);
+    if (key === decorKey) return;
+    decorKey = key;
+    const keep = (id, lv) => !hide || id !== hide.loc || lv !== hide.level;
+    decor = town.lv ? drawUpgrades(init, town.lv, keep) : null;
+    roofs = town.lv ? drawRoofUpgrades(init, town.lv, keep) : null;
+    // a level 3 building is done up inside too
+    for (const [id, room] of Object.entries(rooms)) {
+      const fancy = !!town.lv && town.lv[id] >= 3 && keep(id, 3);
+      if (room.fancy !== fancy) { room.fancy = fancy; room.img = bakeInterior(init.buildings.find((b) => b.id === id), fancy); }
+    }
+  }
+  function startReveal(up) {
+    if (!town.lv) return;
+    const piece = drawUpgrades(init, { [up.loc]: up.level }, (id, lv) => id === up.loc && lv === up.level);
+    reveal = { up, piece, box: inkBox(piece), start: 0 };
+    refreshDecor();
+  }
 
   function setupRooms(m) {
     for (const b of m.buildings) {
@@ -172,6 +207,15 @@
     for (const id of players.keys()) if (!seen.has(id)) players.delete(id);
     seatPeople();
 
+    town = m.town || {};
+    refreshDecor();
+    const placeName = (id) => init.labels.find((l) => l.id === id)?.name || id;
+    $("projcard").style.display = town.sc ? "" : "none";
+    if (town.sc) {
+      $("proj").innerHTML = town.sc.map(([id, n], i) => `<li><span>${i + 1}. ${esc(placeName(id))}</span><span>🎟 ${n}</span></li>`).join("") ||
+        '<li><span>No votes yet: do an activity!</span><span></span></li>';
+    }
+
     $("pop").textContent = m.players.length;
     const top = m.players.slice().sort((a, b) => b.xp - a.xp).slice(0, 6);
     $("board").innerHTML = top.map((p, i) => `<li><span>${i + 1}. ${esc(p.n)}</span><span>Lv ${p.lv} · 🎟 ${p.tk}</span></li>`).join("") ||
@@ -182,14 +226,22 @@
 
   // ---------- raffle overlay ----------
   let raffleTimer = null;
+  // How long the winner stays up: 25 s for hourly raffles, less when raffles
+  // come every few minutes (rehearsals, demos) so the town stays watchable.
+  const holdMs = () => Math.max(6000, Math.min(25000, (init.raffleMs || 3600000) * 0.12));
   function showRaffle(r) {
-    const ov = $("overlay"), name = $("ovName"), text = $("ovText");
+    const ov = $("overlay"), name = $("ovName"), text = $("ovText"), up = $("ovUp");
     clearInterval(raffleTimer);
     ov.classList.add("on");
+    up.textContent = "";
+    const upText = !r.upgrade ? "" : `New in town: ${r.upgrade.name} at ${init.labels.find((l) => l.id === r.upgrade.loc)?.name}, ${builtBy(r.upgrade) || "built by the town"}!`;
+    if (r.upgrade) startReveal(r.upgrade);
+    const close = () => { ov.classList.remove("on"); if (reveal && !reveal.start) reveal.start = Date.now(); };
     if (!r.winners.length) {
       name.textContent = "No entries!";
       text.textContent = "Do any activity this hour to earn tickets.";
-      setTimeout(() => ov.classList.remove("on"), 8000);
+      up.textContent = upText;
+      setTimeout(close, Math.min(8000, holdMs()));
       return;
     }
     text.textContent = `Drawing from ${r.entrants} townsfolk…`;
@@ -202,7 +254,8 @@
         clearInterval(raffleTimer);
         name.textContent = r.winners.join(" & ");
         text.textContent = `wins ${r.prize}! Check your phone for your claim code.`;
-        setTimeout(() => ov.classList.remove("on"), 25000);
+        up.textContent = upText;
+        setTimeout(close, holdMs());
       }
     }, 90);
   }
@@ -230,6 +283,7 @@
 
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(bg[Math.floor(t / 600) % 2], 0, 0, canvas.width, canvas.height);
+    if (roofs) ctx.drawImage(roofs, 0, 0, canvas.width, canvas.height); // under the cutaways
 
     const speed = (1000 / init.tickMs) * 1.1;
     const list = [];
@@ -266,6 +320,25 @@
       }
       ctx.globalAlpha = 1;
     }
+
+    // town upgrades, then winner statues on their plinths around the Plaza
+    if (decor) ctx.drawImage(decor, 0, 0, canvas.width, canvas.height);
+    const dropAge = reveal && reveal.start ? Date.now() - reveal.start : -1;
+    if (dropAge >= 0 && dropAge < DROP_MS) {
+      // falls in, lands at 70% of the time, then a little bounce
+      const k = dropAge / DROP_MS;
+      const off = k < 0.7 ? -Math.pow(1 - k / 0.7, 2) * 70 : -Math.sin(((k - 0.7) / 0.3) * Math.PI) * 4;
+      ctx.drawImage(reveal.piece, 0, Math.round(off * scale), canvas.width, canvas.height);
+    } else if (dropAge >= DROP_MS) refreshDecor();
+    if (town.lv) {
+      // an upgrade that is still waiting to drop in doesn't animate yet
+      const waiting = reveal && dropAge < DROP_MS ? reveal.up : null;
+      drawLandmarkFx(ctx, init, waiting ? { ...town.lv, [waiting.loc]: waiting.level - 1 } : town.lv, t, scale);
+    }
+    (town.st || []).slice().reverse().forEach((st, i) => {
+      const [sx, sy] = STATUE_SPOTS[i];
+      ctx.drawImage(statueSprite(st.l), Math.round(sx * u), Math.round((sy - 1) * u), u, u * 2);
+    });
 
     // things drawn under the characters: sprouts and fishing lines
     for (const p of list) {
@@ -360,6 +433,38 @@
       ctx.fillStyle = "#fff"; ctx.fillRect(x, y, w, size * 1.6);
       ctx.fillStyle = "#2a2233"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
       ctx.fillText(p.s, x + size / 2, y + size * 0.85);
+    }
+
+    // statue name plates
+    (town.st || []).slice().reverse().forEach((st, i) => {
+      const [sx, sy] = STATUE_SPOTS[i];
+      label(st.n, (sx + 0.5) * u, (sy + 1) * u + ns * 0.4, ns, "#000010", "#ffca28");
+    });
+
+    // dust where a new upgrade lands, then a gold arrow pointing at it
+    if (dropAge >= 0 && reveal.box) {
+      const bx = reveal.box;
+      const landed = dropAge - DROP_MS * 0.7;
+      if (landed >= 0 && landed < 700) {
+        const ph = landed / 700;
+        ctx.fillStyle = `rgba(235,225,205,${0.8 * (1 - ph)})`;
+        for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+          const x = ((side < 0 ? bx.x0 : bx.x1) + side * (2 + ph * (6 + i * 4))) * scale;
+          const y = (bx.y1 - i * 2 - ph * 3) * scale;
+          const r = (2 + ph * 3 + i) * scale;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      if (dropAge >= DROP_MS && dropAge < ARROW_MS) {
+        const cx = ((bx.x0 + bx.x1) / 2) * scale;
+        const tip = (bx.y0 - 3 - Math.abs(Math.sin(t / 180)) * 4) * scale;
+        const w = 5 * scale, h = 6 * scale, o = Math.max(1, scale * 0.75);
+        for (const [pad, col] of [[o, "#000010"], [0, "#ffca28"]]) {
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.moveTo(cx, tip + pad); ctx.lineTo(cx - w - pad, tip - h - pad); ctx.lineTo(cx + w + pad, tip - h - pad); ctx.closePath(); ctx.fill();
+        }
+      }
+      if (dropAge >= ARROW_MS) reveal = null;
     }
 
     // "Find me" markers go on top of everything else

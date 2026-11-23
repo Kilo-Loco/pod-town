@@ -23,6 +23,10 @@
   tr.miss { display: none; }
   .dim { color: #b3b3c0; }
   #msg { color: #FCB1FF; min-height: 1.4em; }
+  select { font: inherit; padding: 6px; background: #000010; color: #fff; border: 2px solid #210e5e; border-radius: 4px; }
+  .lv { display: inline-flex; gap: 4px; }
+  .lv button { padding: 2px 9px; }
+  .lv button.on { background: #FFC01F; color: #000010; }
 </style>
 </head>
 <body>
@@ -48,6 +52,24 @@
       <button class="ghost" id="refresh">Refresh</button>
     </div>
     <table><thead><tr><th>Drawn</th><th>Prize</th><th>Winner</th><th>Claim code</th><th>Status</th><th></th></tr></thead><tbody id="wins"></tbody></table>
+    <h2>Town upgrades</h2>
+    <p class="dim">At each raffle, the place where players earned the most tickets that hour gets its next upgrade on the big screen. Upgrades are decoration only and never change raffle odds.</p>
+    <div class="bar">
+      <label>Upgrades <select id="tmode">
+        <option value="auto">Auto: busiest place upgrades at each raffle</option>
+        <option value="manual">Manual: only the levels you set below</option>
+        <option value="off">Off: hidden on the big screen and phones</option>
+      </select></label>
+      <label><input id="tstat" type="checkbox" style="width:auto"> Raffle winners get a statue in the Plaza</label>
+    </div>
+    <div class="bar">
+      <span class="dim" id="tdef"></span>
+      <button class="ghost" id="tdefault">Use event defaults</button>
+      <button class="ghost" id="tclear">Clear statues</button>
+      <button class="warn" id="treset">Reset town</button>
+    </div>
+    <table><thead><tr><th>Place</th><th>Level</th><th>Upgrades</th><th>Tickets this hour</th></tr></thead><tbody id="town"></tbody></table>
+    <div class="dim" id="tstatues"></div>
     <h2>Players (<span id="pc">0</span>)</h2>
     <table><thead><tr><th>Name</th><th>Lv</th><th>Tickets</th><th>Done</th><th>Status</th><th></th></tr></thead><tbody id="players"></tbody></table>
   </div>
@@ -99,6 +121,7 @@
     if (!s.raffles.length) { const tr = document.createElement("tr"); cell(tr, "No raffles drawn yet.", "dim").colSpan = 6; wins.append(tr); }
 
     filterCodes();
+    renderTown(s.town);
     $("pc").textContent = s.players.length;
     const pl = $("players"); pl.textContent = "";
     for (const p of s.players.sort((a, b) => b.xp - a.xp)) {
@@ -108,6 +131,40 @@
       pl.append(tr);
     }
   }
+
+  const PLACE = { lab: "Runpod HQ", gym: "Training Gym", library: "Library", arcade: "Benchmark Arcade", market: "Swag Shop",
+    cafe: "Cache Cafe", sandbox: "Sandbox", pond: "Data Lake", garden: "GPU Farm", plaza: "Plaza" };
+  const setTown = (data) => act(() => api("/api/admin/town", data));
+  function renderTown(t) {
+    if (document.activeElement !== $("tmode")) $("tmode").value = t.mode;
+    $("tstat").checked = t.statues;
+    const changed = Object.keys(t.override).length;
+    $("tdef").textContent = `Event defaults: upgrades ${t.defaults.mode}, statues ${t.defaults.statues ? "on" : "off"}` +
+      (changed ? " (changed here)" : "");
+    $("tdefault").style.display = changed ? "" : "none";
+    const tb = $("town"); tb.textContent = "";
+    for (const [id, names] of Object.entries(t.names)) {
+      const tr = document.createElement("tr");
+      cell(tr, PLACE[id] || id);
+      const lv = cell(tr, "").appendChild(document.createElement("span")); lv.className = "lv";
+      for (let n = 0; n <= t.maxLevel; n++) {
+        const b = btn(String(n), n === t.levels[id] ? "on" : "ghost", () => setTown({ levels: { [id]: n } }));
+        b.title = n ? `Show upgrades 1–${n}` : "No upgrades";
+        lv.append(b);
+      }
+      cell(tr, names.map((nm, i) => (i < t.levels[id] ? "✓ " : "· ") + nm).join("   "), "dim");
+      cell(tr, t.mode === "auto" ? (t.score[id] || 0) : "–");
+      tb.append(tr);
+    }
+    $("tstatues").textContent = t.statueList.length
+      ? "Statues: " + t.statueList.map((x) => x.name).join(", ")
+      : (t.statues ? "No statues yet: the next raffle winner gets the first one." : "");
+  }
+  $("tmode").onchange = () => setTown({ mode: $("tmode").value });
+  $("tstat").onchange = () => setTown({ statues: $("tstat").checked });
+  $("tdefault").onclick = () => setTown({ useDefaults: true });
+  $("tclear").onclick = () => { if (confirm("Remove every statue from the Plaza?")) setTown({ clearStatues: true }); };
+  $("treset").onclick = () => { if (confirm("Reset the town? Every place goes back to no upgrades and this hour's tickets toward the town project are cleared.")) setTown({ reset: true }); };
 
   // Staff type the code a winner shows them; only matching rows stay visible.
   function filterCodes() {

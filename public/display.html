@@ -23,13 +23,14 @@
   #count { font-size: clamp(26px, 3vw, 52px); color: var(--gold); font-weight: bold; text-shadow: 3px 3px 0 #000; }
   #prize { font-size: clamp(12px, 1.1vw, 17px); }
   ol, ul { margin: 0; padding: 0; list-style: none; font-size: clamp(11px, 1vw, 16px); }
-  #board li { display: flex; justify-content: space-between; padding: 2px 0; }
-  #board li span:last-child { color: var(--dim); }
+  #board li, #proj li { display: flex; justify-content: space-between; padding: 2px 0; }
+  #board li span:last-child, #proj li span:last-child { color: var(--dim); }
   #feedcard { flex: 1 1 0; min-height: 0; overflow: hidden; }
   #feed li { padding: 3px 0; border-bottom: 1px dashed var(--line); color: var(--ink); }
   #feed li:last-child { border: 0; }
   #overlay { position: absolute; inset: 0; background: rgba(0, 0, 16, 0.86); display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.3; z-index: 5; }
   #overlay.on { display: flex; }
+  #overlay .p.up { color: #ffca28; margin-top: 1.4em; white-space: pre-line; }
   #overlay .t { font-size: clamp(20px, 3vw, 54px); color: var(--pop); letter-spacing: 6px; text-shadow: 4px 4px 0 #000; }
   #overlay .n { font-size: clamp(32px, 6vw, 110px); color: var(--gold); font-weight: bold; text-shadow: 5px 5px 0 #000; margin: 12px 0; min-height: 1.3em; }
   #overlay .p { font-size: clamp(14px, 1.8vw, 30px); color: var(--ink); }
@@ -48,12 +49,13 @@
   <div id="stage">
     <canvas id="c"></canvas>
     <div id="conn">Reconnecting…</div>
-    <div id="overlay"><div class="t">★ RAFFLE TIME ★</div><div class="n" id="ovName"></div><div class="p" id="ovText"></div></div>
+    <div id="overlay"><div class="t">★ RAFFLE TIME ★</div><div class="n" id="ovName"></div><div class="p" id="ovText"></div><div class="p up" id="ovUp"></div></div>
   </div>
   <div id="side">
     <div class="card"><h1>POD TOWN</h1><div class="sub"><span id="pop">0</span> townsfolk · tell your character what to do</div></div>
     <div class="card" id="join"><img id="qr" src="/api/qr.svg" alt="QR code to join"><div><b>Scan to join!</b><span id="joinUrl"></span></div></div>
     <div class="card"><h2>Next raffle</h2><div id="count">--:--</div><div id="prize"></div><div class="sub" id="lastWin"></div></div>
+    <div class="card" id="projcard" style="display:none"><h2>Town project</h2><div class="sub">The busiest place gets upgraded at the raffle</div><ol id="proj"></ol></div>
     <div class="card"><h2>Top townsfolk</h2><ol id="board"></ol></div>
     <div class="card" id="feedcard"><h2>Town news</h2><ul id="feed"></ul></div>
   </div>
