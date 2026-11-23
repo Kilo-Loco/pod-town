@@ -17,7 +17,8 @@
   h2 { margin: 0 0 6px; font-size: clamp(11px, 1vw, 15px); letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
   .sub { color: var(--dim); font-size: clamp(11px, 1vw, 15px); margin-top: 2px; }
   #join { display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; }
-  #join img { width: 100%; max-width: 240px; height: auto; background: #fff; padding: 6px; border-radius: 4px; flex: none; }
+  /* the QR code shrinks on short screens so the cards below always fit */
+  #join img { width: min(240px, 100%, 28vh); height: auto; background: #fff; padding: 6px; border-radius: 4px; flex: none; }
   #join b { font-size: clamp(15px, 1.5vw, 24px); color: var(--gold); display: block; margin-bottom: 4px; }
   #join span { font-size: clamp(11px, 0.95vw, 15px); color: var(--dim); word-break: break-all; }
   #count { font-size: clamp(26px, 3vw, 52px); color: var(--gold); font-weight: bold; text-shadow: 3px 3px 0 #000; }
@@ -25,7 +26,18 @@
   ol, ul { margin: 0; padding: 0; list-style: none; font-size: clamp(11px, 1vw, 16px); }
   #board li, #proj li { display: flex; justify-content: space-between; padding: 2px 0; }
   #board li span:last-child, #proj li span:last-child { color: var(--dim); }
-  #feedcard { flex: 1 1 0; min-height: 0; overflow: hidden; }
+  /* The rotating card fills whatever height is left and shows one page at a
+     time (see rotate() in display.js), so nothing ever runs off the screen. */
+  #rot { flex: 1 1 0; min-height: 0; overflow: hidden; position: relative; }
+  #rot .page { display: none; height: 100%; overflow: hidden; }
+  /* a long list fades out at the bottom rather than cutting a line in half */
+  #feedpage, #boardpage { -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent); }
+  #rot .page.on { display: block; animation: pagein 0.5s ease-out; }
+  @keyframes pagein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #dots { position: absolute; top: 12px; right: 12px; display: flex; gap: 5px; }
+  #dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+  #dots i.on { background: var(--pop); }
+  #now .sub { margin-top: 6px; font-size: clamp(12px, 1.05vw, 16px); color: var(--ink); }
   #feed li { padding: 3px 0; border-bottom: 1px dashed var(--line); color: var(--ink); }
   #feed li:last-child { border: 0; }
   #overlay { position: absolute; inset: 0; background: rgba(0, 0, 16, 0.86); display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.3; z-index: 5; }
@@ -40,7 +52,10 @@
     html, body { height: auto; overflow: auto; }
     #wrap { flex-direction: column; height: auto; }
     #side { flex: none; width: 100% !important; max-width: 768px; height: auto; }
-    #feedcard { flex: none; }
+    #rot { flex: none; }
+    #rot .page { display: block; height: auto; margin-bottom: 12px; } /* stacked: show every page, no rotation */
+    #dots { display: none; }
+    #feedpage, #boardpage { -webkit-mask-image: none; mask-image: none; }
   }
 </style>
 </head>
@@ -54,10 +69,14 @@
   <div id="side">
     <div class="card"><h1>POD TOWN</h1><div class="sub"><span id="pop">0</span> townsfolk · tell your character what to do</div></div>
     <div class="card" id="join"><img id="qr" src="/api/qr.svg" alt="QR code to join"><div><b>Scan to join!</b><span id="joinUrl"></span></div></div>
-    <div class="card"><h2>Next raffle</h2><div id="count">--:--</div><div id="prize"></div><div class="sub" id="lastWin"></div><div class="sub" id="wx"></div><div class="sub" id="seasonLine"></div></div>
-    <div class="card" id="projcard" style="display:none"><h2>Town project</h2><div class="sub">The busiest place gets upgraded at the raffle</div><ol id="proj"></ol></div>
-    <div class="card"><h2>Top townsfolk</h2><ol id="board"></ol></div>
-    <div class="card" id="feedcard"><h2>Town news</h2><ul id="feed"></ul></div>
+    <div class="card"><h2>Next raffle</h2><div id="count">--:--</div><div id="prize"></div></div>
+    <div class="card" id="rot">
+      <div id="dots"></div>
+      <div class="page" id="now"><h2>Right now</h2><div class="sub" id="lastWin"></div><div class="sub" id="wx"></div><div class="sub" id="seasonLine"></div></div>
+      <div class="page" id="projpage"><h2>Town project</h2><div class="sub">The busiest place gets upgraded at the raffle</div><ol id="proj"></ol></div>
+      <div class="page" id="boardpage"><h2>Top townsfolk</h2><ol id="board"></ol></div>
+      <div class="page" id="feedpage"><h2>Town news</h2><ul id="feed"></ul></div>
+    </div>
   </div>
 </div>
 <script src="/art.js"></script>

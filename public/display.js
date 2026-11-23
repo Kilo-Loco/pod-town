@@ -223,14 +223,14 @@
       (weather.boost ? ` · ${BOOST_NAMES[weather.boost] || weather.boost} tickets ×2` : "") : "";
     refreshDecor();
     const placeName = (id) => init.labels.find((l) => l.id === id)?.name || id;
-    $("projcard").style.display = town.sc ? "" : "none";
+
     if (town.sc) {
       $("proj").innerHTML = town.sc.map(([id, n], i) => `<li><span>${i + 1}. ${esc(placeName(id))}</span><span>🎟 ${n}</span></li>`).join("") ||
         '<li><span>No votes yet: do an activity!</span><span></span></li>';
     }
 
     $("pop").textContent = m.players.length;
-    const top = m.players.slice().sort((a, b) => b.xp - a.xp).slice(0, 6);
+    const top = m.players.slice().sort((a, b) => b.xp - a.xp).slice(0, 10); // the page fades out whatever doesn't fit
     $("board").innerHTML = top.map((p, i) => `<li><span>${i + 1}. ${esc(p.n)}</span><span>Lv ${p.lv} · 🎟 ${p.tk}</span></li>`).join("") ||
       '<li><span>Nobody yet. Be the first!</span><span></span></li>';
     $("feed").innerHTML = m.events.slice().reverse().map((e) => `<li>${esc(e.text)}</li>`).join("");
@@ -272,6 +272,23 @@
       }
     }, 90);
   }
+
+  // ---------- sidebar pages ----------
+  // The QR code and the raffle countdown always show. Everything else shares
+  // one card that shows a page at a time, moving on every PAGE_MS, so the
+  // sidebar fits any screen however much there is to say.
+  const PAGE_MS = 8000;
+  let pageKey = "";
+  function rotate() {
+    const pages = ["now", town.sc ? "projpage" : null, "boardpage", "feedpage"].filter(Boolean);
+    const cur = pages[Math.floor(Date.now() / PAGE_MS) % pages.length];
+    const key = pages.join() + "|" + cur;
+    if (key === pageKey) return;
+    pageKey = key;
+    for (const el of $("rot").querySelectorAll(".page")) el.classList.toggle("on", el.id === cur);
+    $("dots").innerHTML = pages.map((p) => `<i class="${p === cur ? "on" : ""}"></i>`).join("");
+  }
+  setInterval(rotate, 250);
 
   // ---------- rendering ----------
   /**
