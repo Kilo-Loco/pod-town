@@ -1,6 +1,6 @@
 // Big-screen display: renders the town and everyone in it from server snapshots.
 (function () {
-  const { TS, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior, drawUpgrades, drawRoofUpgrades, drawLandmarkFx, inkBox, statueSprite, STATUE_SPOTS } = Art;
+  const { TS, spriteSheet, bakeWorld, roofRect, seatsFor, bakeInterior, drawUpgrades, drawRoofUpgrades, drawLandmarkFx, drawSeasonDecor, drawSeasonRoofs, drawSeasonFx, inkBox, statueSprite, STATUE_SPOTS } = Art;
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
   const $ = (id) => document.getElementById(id);
@@ -22,6 +22,8 @@
   // Town upgrades and winner statues (see game/town.js). Features that are
   // switched off on the admin page are simply missing from the feed.
   let town = {}, decor = null, roofs = null, decorKey = "";
+  let weather = null; // { c, icon, text, boost } or null when weather is off
+  let season = null, seasonDecor = null, seasonRoofs = null; // season: { id, name, icon, act } or null
   // A brand-new upgrade stays hidden under the raffle screen, then drops into
   // place with a puff of dust once the screen closes, and a gold arrow points
   // at it for a few seconds. reveal: { up, piece, box, start } (start is 0
@@ -208,6 +210,17 @@
     seatPeople();
 
     town = m.town || {};
+    weather = m.weather || null;
+    const nextSeason = m.season || null;
+    if ((nextSeason?.id || null) !== (season?.id || null)) {
+      seasonDecor = nextSeason ? drawSeasonDecor(init, nextSeason.id) : null;
+      seasonRoofs = nextSeason ? drawSeasonRoofs(init, nextSeason.id) : null;
+    }
+    season = nextSeason;
+    $("seasonLine").textContent = season ? `Limited time: ${season.actName}` : "";
+    const BOOST_NAMES = { sandbox: "Sandbox", read: "Reading", data: "Fishing", warmup: "Cafe", benchmark: "Benchmarks", farm: "GPU Farm" };
+    $("wx").textContent = weather ? `${weather.icon} ${weather.c[0].toUpperCase() + weather.c.slice(1)}` + (weather.where ? ` in ${weather.where}` : "") +
+      (weather.boost ? ` · ${BOOST_NAMES[weather.boost] || weather.boost} tickets ×2` : "") : "";
     refreshDecor();
     const placeName = (id) => init.labels.find((l) => l.id === id)?.name || id;
     $("projcard").style.display = town.sc ? "" : "none";
@@ -261,6 +274,70 @@
   }
 
   // ---------- rendering ----------
+  /**
+   * The weather: a light overlay over the town, drawn above the characters
+   * and below the name tags and signs so those stay readable. Every particle's
+   * position is worked out from the time, so there is no state to keep.
+   */
+  function drawWeather(t) {
+    if (!weather) return;
+    const W = canvas.width, H = canvas.height, s = scale;
+    const rnd = (i, k) => { const v = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return v - Math.floor(v); };
+    const tint = (col) => { ctx.fillStyle = col; ctx.fillRect(0, 0, W, H); };
+    switch (weather.c) {
+      case "overcast":
+        tint("rgba(50,55,80,0.16)");
+        break;
+      case "rain": {
+        tint("rgba(40,60,110,0.16)");
+        ctx.strokeStyle = "rgba(200,222,255,0.7)";
+        ctx.lineWidth = Math.max(1, s * 0.7);
+        ctx.beginPath();
+        for (let i = 0; i < 320; i++) {
+          const speed = 0.55 + rnd(i, 1) * 0.35; // screen heights per second
+          const y = ((t / 1000) * speed * H + rnd(i, 2) * H) % (H + 20 * s) - 10 * s;
+          const x = (rnd(i, 3) * (W + 40 * s) + y * 0.25) % (W + 40 * s) - 20 * s;
+          ctx.moveTo(x, y); ctx.lineTo(x - 3 * s, y + 12 * s);
+        }
+        ctx.stroke();
+        break;
+      }
+      case "snow":
+        tint("rgba(220,230,255,0.08)");
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        for (let i = 0; i < 260; i++) {
+          const speed = 0.06 + rnd(i, 1) * 0.06;
+          const y = ((t / 1000) * speed * H + rnd(i, 2) * H) % H;
+          const x = rnd(i, 3) * W + Math.sin(t / 1100 + i) * 8 * s;
+          const r = (1 + rnd(i, 4) * 1.1) * s;
+          ctx.fillRect(Math.round(x - r), Math.round(y - r), Math.ceil(r * 2), Math.ceil(r * 2));
+        }
+        break;
+      case "fog": {
+        tint("rgba(225,228,238,0.16)");
+        for (let i = 0; i < 6; i++) {
+          const y = (0.1 + i * 0.16) * H;
+          const x = (((t / 1000) * (8 + i * 3) * s + rnd(i, 1) * W) % (W * 1.6)) - W * 0.3;
+          const g = ctx.createRadialGradient(x, y, 0, x, y, W * 0.28);
+          g.addColorStop(0, "rgba(240,242,248,0.38)"); g.addColorStop(1, "rgba(240,242,248,0)");
+          ctx.fillStyle = g; ctx.fillRect(x - W * 0.3, y - W * 0.3, W * 0.6, W * 0.6);
+        }
+        break;
+      }
+      case "blossoms":
+        for (let i = 0; i < 110; i++) {
+          const speed = 0.05 + rnd(i, 1) * 0.05;
+          const k = ((t / 1000) * speed + rnd(i, 2)) % 1;
+          const x = (rnd(i, 3) * W + k * W * 0.4 + Math.sin(t / 900 + i) * 6 * s) % W;
+          const y = k * H;
+          ctx.fillStyle = i % 3 ? "rgba(255,183,213,0.9)" : "rgba(255,255,255,0.85)";
+          const w = (Math.abs(Math.sin(t / 300 + i)) * 2.2 + 0.8) * s; // a tumbling petal
+          ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(2 * s));
+        }
+        break;
+    }
+  }
+
   function label(text, x, y, size, fg, bgc) {
     ctx.font = `bold ${size}px ui-monospace, Menlo, Consolas, monospace`;
     const w = ctx.measureText(text).width + size * 0.8;
@@ -284,6 +361,7 @@
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(bg[Math.floor(t / 600) % 2], 0, 0, canvas.width, canvas.height);
     if (roofs) ctx.drawImage(roofs, 0, 0, canvas.width, canvas.height); // under the cutaways
+    if (seasonRoofs) ctx.drawImage(seasonRoofs, 0, 0, canvas.width, canvas.height);
 
     const speed = (1000 / init.tickMs) * 1.1;
     const list = [];
@@ -323,6 +401,7 @@
 
     // town upgrades, then winner statues on their plinths around the Plaza
     if (decor) ctx.drawImage(decor, 0, 0, canvas.width, canvas.height);
+    if (seasonDecor) ctx.drawImage(seasonDecor, 0, 0, canvas.width, canvas.height);
     const dropAge = reveal && reveal.start ? Date.now() - reveal.start : -1;
     if (dropAge >= 0 && dropAge < DROP_MS) {
       // falls in, lands at 70% of the time, then a little bounce
@@ -335,6 +414,7 @@
       const waiting = reveal && dropAge < DROP_MS ? reveal.up : null;
       drawLandmarkFx(ctx, init, waiting ? { ...town.lv, [waiting.loc]: waiting.level - 1 } : town.lv, t, scale);
     }
+    if (season) drawSeasonFx(ctx, init, season.id, t, scale);
     (town.st || []).slice().reverse().forEach((st, i) => {
       const [sx, sy] = STATUE_SPOTS[i];
       ctx.drawImage(statueSprite(st.l), Math.round(sx * u), Math.round((sy - 1) * u), u, u * 2);
@@ -358,6 +438,33 @@
           ctx.fillStyle = "#2a2233"; ctx.fillRect(fx + 4 * scale, cy, 8 * scale, 5 * scale);
           ctx.fillStyle = "#874BFF"; ctx.fillRect(fx + 6 * scale, cy + scale, 4 * scale, 3 * scale);
         }
+      } else if (p.a === "snowman") { // a snowman grows one ball at a time beside them
+        const n = prog < 0.33 ? 1 : prog < 0.66 ? 2 : 3;
+        const balls = [[8, 12, 5], [8, 7, 4], [8, 3, 3]];
+        for (let i = 0; i < n; i++) {
+          const [bx, by, r] = balls[i];
+          ctx.fillStyle = "#2a2233"; ctx.beginPath(); ctx.arc(fx + bx * scale, fy + by * scale, (r + 0.6) * scale, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(fx + bx * scale, fy + by * scale, r * scale, 0, Math.PI * 2); ctx.fill();
+        }
+        if (n === 3) { ctx.fillStyle = "#ff7a1a"; ctx.fillRect(fx + 8 * scale, fy + 3 * scale, 3 * scale, scale); }
+      } else if (p.a === "pumpkin") { // a pumpkin gets its face, then glows
+        ctx.fillStyle = "#2a2233"; ctx.fillRect(fx + 3 * scale, fy + 6 * scale, 10 * scale, 9 * scale);
+        ctx.fillStyle = "#ff7a1a"; ctx.fillRect(fx + 4 * scale, fy + 7 * scale, 8 * scale, 7 * scale);
+        ctx.fillStyle = "#3f8f4a"; ctx.fillRect(fx + 7 * scale, fy + 4 * scale, 2 * scale, 3 * scale);
+        if (prog > 0.5) {
+          ctx.fillStyle = prog > 0.85 && Math.sin(t / 90) > -0.5 ? "#fff176" : "#2a2233";
+          ctx.fillRect(fx + 5 * scale, fy + 9 * scale, 2 * scale, 2 * scale); ctx.fillRect(fx + 9 * scale, fy + 9 * scale, 2 * scale, 2 * scale);
+          ctx.fillRect(fx + 6 * scale, fy + 12 * scale, 4 * scale, scale);
+        }
+      } else if (p.a === "kite") { // a kite climbs on its string and bobs in the breeze
+        const cx = (p.rx + 0.5) * u, cy = (p.ry + 0.3) * u;
+        const kx = cx + (14 + Math.sin(t / 800 + p.rx) * 4) * scale, ky = cy - (10 + prog * 26 + Math.sin(t / 500) * 2) * scale;
+        ctx.strokeStyle = "#2a2233"; ctx.lineWidth = Math.max(1, scale / 2);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.quadraticCurveTo(cx + 10 * scale, cy - 4 * scale, kx, ky); ctx.stroke();
+        ctx.fillStyle = "#874BFF";
+        ctx.beginPath(); ctx.moveTo(kx, ky - 6 * scale); ctx.lineTo(kx + 4 * scale, ky); ctx.lineTo(kx, ky + 6 * scale); ctx.lineTo(kx - 4 * scale, ky); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#FCB1FF"; ctx.fillRect(kx - scale, ky - 3 * scale, 2 * scale, 6 * scale);
+        for (let i = 1; i <= 3; i++) ctx.fillRect(kx + Math.sin(t / 300 + i) * 2 * scale - scale, ky + (6 + i * 3) * scale, 2 * scale, 2 * scale);
       } else if (p.a === "data") {
         const bobY = Math.sin(t / 400 + p.rx) * scale;
         const cx = (p.rx + 0.5) * u, cy = (p.ry + 0.5) * u;
@@ -374,6 +481,8 @@
       const f = p.moving ? [1, 0, 2, 0][Math.floor(t / 140) % 4] : 0;
       ctx.drawImage(spriteSheet(p.l), f * TS, p.d * TS, TS, TS, Math.round(p.rx * u), Math.round((p.ry - 0.25) * u), u, u);
     }
+
+    drawWeather(t);
 
     // inside each open building: a name tag for whoever's turn it is in the
     // roll call, and a count of anyone who didn't fit

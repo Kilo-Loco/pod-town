@@ -1,6 +1,8 @@
 // Authoritative town simulation: players, activities, rewards, hourly raffle.
 import * as world from "./world.js";
 import { Town } from "./town.js";
+import { Weather } from "./weather.js";
+import { Season } from "./season.js";
 
 export const ACTS = {
   train: { name: "Train a model at the Training Gym", short: "Train a model", loc: "gym", verb: "Training a model", icon: "🏋️", mins: 6, xp: 35, tickets: 2 },
@@ -13,6 +15,10 @@ export const ACTS = {
   warmup: { name: "Warm up at the Cache Cafe", short: "Warm up", loc: "cafe", verb: "Warming up", icon: "☕", mins: 2, xp: 5, tickets: 1 },
   shop: { name: "Grab swag at the Swag Shop", short: "Get swag", loc: "market", verb: "Browsing swag", icon: "🛍️", mins: 2, xp: 5, tickets: 1 },
   chat: { name: "Network at the Plaza", short: "Network", loc: "plaza", verb: "Networking", icon: "📡", mins: 2, xp: 10, tickets: 1 },
+  // limited-time activities: each is only offered during its season (game/season.js)
+  snowman: { name: "Build a snowman at the Plaza", short: "Build a snowman", loc: "plaza", verb: "Building a snowman", icon: "⛄", mins: 3, xp: 20, tickets: 2, season: "winter" },
+  pumpkin: { name: "Carve a pumpkin at the GPU Farm", short: "Carve a pumpkin", loc: "garden", verb: "Carving a pumpkin", icon: "🎃", mins: 3, xp: 20, tickets: 2, season: "halloween" },
+  kite: { name: "Fly a kite at the Sandbox", short: "Fly a kite", loc: "sandbox", verb: "Flying a kite", icon: "🪁", mins: 3, xp: 20, tickets: 2, season: "spring" },
 };
 
 // Must match the lists in public/art.js
@@ -56,6 +62,19 @@ const SANDBOX = [
   "built a sandcastle-shaped neural net", "ran some very untrusted code, safely",
   "taught an agent to dig holes", "prototyped a chatbot that only says \"sand\"",
   "broke everything and nobody noticed", "stress-tested a sandcastle (it held)",
+];
+
+const SNOWMEN = [
+  "a snowman with a GPU for a nose", "a snowman wearing a tiny Runpod hoodie", "a perfectly quantized snowman",
+  "a snowman that scales to zero when it melts", "a snow-model with 3 layers (and no overfitting)",
+];
+const PUMPKINS = [
+  "a pumpkin with a spooky GPU fan face", "a jack-o'-lantern that glows Runpod purple", "a pumpkin shaped like a cold start (scary!)",
+  "a pumpkin with a 404 face", "a pumpkin that predicts the next raffle (spookily)",
+];
+const KITES = [
+  "a kite shaped like a tensor", "a purple Runpod kite higher than the HQ roof", "a kite that caught a stray gradient",
+  "a dragon kite with a very long context window", "a kite that never once cold-started",
 ];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -112,6 +131,8 @@ export class Sim {
     this.events = saved?.events || [];
     this.arcadeHigh = saved?.arcadeHigh || { score: 0, name: "" };
     this.town = new Town(cfg.town || { mode: "auto", statues: true }, saved?.town);
+    this.season = new Season(cfg.season || { mode: "off" }, saved?.season);
+    this.weather = new Weather(cfg.weather || { mode: "off", fixed: "clear", city: "", boost: false }, saved?.weather);
     this.raffleMs = (cfg.raffleMinutes || 60) * 60000;
     this.lastRaffleHour = Math.floor(Date.now() / this.raffleMs); // never draw on boot
     this.dirty = false;
@@ -142,6 +163,8 @@ export class Sim {
       events: this.events.slice(-30),
       arcadeHigh: this.arcadeHigh,
       town: this.town.serialize(),
+      weather: this.weather.serialize(),
+      season: this.season.serialize(),
     };
   }
 
@@ -288,12 +311,15 @@ export class Sim {
     p.dir = 0;
     const before = levelOf(p.xp);
     p.xp += a.xp;
-    p.tickets += a.tickets;
+    // weather boost (off unless staff switch it on): double tickets for one activity
+    const boosted = this.weather.boosted === id;
+    const tickets = a.tickets * (boosted ? 2 : 1);
+    p.tickets += tickets;
     p.done++;
-    this.town.credit(a.loc, a.tickets, { id: p.id, name: p.name });
+    this.town.credit(a.loc, tickets, { id: p.id, name: p.name });
     const text = this.reward(p, id);
     this.event(`${p.name} ${text}`);
-    this.logFor(p, `You ${text} (+${a.xp} XP, +${a.tickets} raffle ticket${a.tickets > 1 ? "s" : ""})`);
+    this.logFor(p, `You ${text} (+${a.xp} XP, +${tickets} raffle ticket${tickets > 1 ? "s" : ""}${boosted ? ", doubled by the weather" : ""})`);
     const after = levelOf(p.xp);
     if (after > before) {
       this.event(`${p.name} reached level ${after}!`);
@@ -364,6 +390,9 @@ export class Sim {
           ? `browsed the swag (it costs ${SHOP_PRICE} coins)`
           : "browsed the Swag Shop (owns all the swag!)";
       }
+      case "snowman": return `built ${pick(SNOWMEN)}`;
+      case "pumpkin": return `carved ${pick(PUMPKINS)}`;
+      case "kite": return `flew ${pick(KITES)}`;
       case "chat": {
         const others = [...this.players.values()].filter((o) => o !== p && o.act?.id === "chat");
         it.peers++;
@@ -412,6 +441,7 @@ export class Sim {
     );
     const first = winners.length && this.players.get(winners[0].playerId);
     const built = this.town.onRaffle(now, first ? { name: first.name, look: first.look } : null);
+    this.weather.onRaffle();
     let upgrade = null;
     if (built) {
       const { ids, ...shown } = built;
@@ -476,6 +506,8 @@ export class Sim {
       nextRaffle: this.nextRaffle(now),
       lastWinners: last ? last.winners.map((w) => w.name) : [],
       town: this.town.feed(),
+      weather: this.weather.feed(),
+      season: this.season.feed(),
     };
   }
 }

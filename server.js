@@ -5,6 +5,8 @@ import * as world from "./game/world.js";
 import { ACTS, cleanLook, levelOf, Sim } from "./game/sim.js";
 import { interpret } from "./game/llm.js";
 import { MODES } from "./game/town.js";
+import { CONDITIONS, WEATHER_MODES } from "./game/weather.js";
+import { SEASON_MODES, SEASONS } from "./game/season.js";
 
 const env = (k, d) => Deno.env.get(k) ?? d;
 const randomHex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (v) => v.toString(16).padStart(2, "0")).join("");
@@ -27,6 +29,19 @@ const cfg = {
     mode: MODES.includes(env("TOWN_UPGRADES", "auto")) ? env("TOWN_UPGRADES", "auto") : "auto",
     statues: env("TOWN_STATUES", "1") !== "0",
   },
+  // starting settings for the weather; the admin page can change them.
+  // WEATHER is off, auto, live, or one condition to show all the time.
+  // seasonal theme: off, auto (by date), or one season to show all the time
+  season: { mode: SEASON_MODES.includes(env("SEASON", "off").toLowerCase()) ? env("SEASON", "off").toLowerCase() : "off" },
+  weather: (() => {
+    const w = env("WEATHER", "off").toLowerCase();
+    return {
+      mode: CONDITIONS.includes(w) ? "fixed" : WEATHER_MODES.includes(w) ? w : "off",
+      fixed: CONDITIONS.includes(w) ? w : "clear",
+      city: env("WEATHER_CITY", ""),
+      boost: env("WEATHER_BOOST", "0") === "1",
+    };
+  })(),
 };
 const DATA_FILE = env("DATA_FILE", new URL("./data/state.json", import.meta.url).pathname);
 const MAX_PLAYERS = Number(env("MAX_PLAYERS", "2000"));
@@ -119,6 +134,12 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
   Deno.addSignalListener(sig, async () => { sim.dirty = true; await save(); Deno.exit(0); });
 }
 
+// ---- live weather ----
+// Checked every minute; it only calls the weather service when a refresh is due.
+const liveWeather = () => sim.weather.refreshLive().then((changed) => { if (changed) sim.dirty = true; });
+liveWeather();
+setInterval(liveWeather, 60000);
+
 // ---- display feed ----
 // The big screen polls plain HTTP rather than holding a WebSocket open:
 // proxies and browser shields sometimes stall WebSockets, and a stalled feed
@@ -200,7 +221,12 @@ function meView(p) {
     nextRaffle: sim.nextRaffle(now),
     prize: cfg.rafflePrize,
     town: sim.town.project(p.id),
-    acts: Object.entries(ACTS).map(([id, a]) => ({ id, short: a.short, icon: a.icon, mins: Math.max(1, Math.round(a.mins / cfg.timeScale * 10) / 10), tickets: a.tickets })),
+    weather: sim.weather.feed(),
+    season: sim.season.feed(),
+    acts: Object.entries(ACTS).filter(([, a]) => sim.season.allows(a)).map(([id, a]) => {
+      const boost = sim.weather.boosted === id; // the weather doubles this one's tickets
+      return { id, short: a.short, icon: a.icon, mins: Math.max(1, Math.round(a.mins / cfg.timeScale * 10) / 10), tickets: a.tickets * (boost ? 2 : 1), boost };
+    }),
   };
 }
 
@@ -263,12 +289,20 @@ async function handle(req) {
         if (!text) return fail(400, "Type what your character should do.");
         result = await interpret(text, cfg);
       }
+      // limited-time activities only run in their season
+      const offSeason = result.steps.filter((s) => s !== "stop" && !sim.season.allows(ACTS[s]));
+      if (offSeason.length) {
+        result.steps = result.steps.filter((s) => !offSeason.includes(s));
+        if (!result.steps.length) result.say = null;
+      }
       if (result.say && isRude(result.say)) result.say = null;
       if (!sim.players.has(p.id)) return fail(401, "Not registered.");
       const wasBusy = !!p.act;
       sim.command(p, result.steps, result.say);
       let reply;
-      if (!result.steps.length) reply = "Hmm, I'm not sure how to do that. Try something like \"train a model at the gym\" or \"fish for data, then play in the sandbox\".";
+      if (!result.steps.length && offSeason.length) {
+        reply = `${ACTS[offSeason[0]].name} is only around in ${SEASONS[ACTS[offSeason[0]].season].name.toLowerCase()}. Try something else!`;
+      } else if (!result.steps.length) reply = "Hmm, I'm not sure how to do that. Try something like \"train a model at the gym\" or \"fish for data, then play in the sandbox\".";
       else if (result.steps[0] === "stop") reply = "Okay! Dropping everything.";
       else {
         const names = result.steps.map((s) => ACTS[s].short).join(" → ");
@@ -330,6 +364,8 @@ async function handle(req) {
         })),
         raffles: sim.raffles.slice().reverse(),
         town: sim.town.adminView(),
+        weather: sim.weather.adminView(),
+        season: sim.season.adminView(),
       });
     }
     if (path === "/api/admin/winners.csv" && req.method === "GET") {
@@ -358,6 +394,21 @@ async function handle(req) {
         if (err) return fail(400, err);
         sim.dirty = true;
         return json({ town: sim.town.adminView() });
+      }
+      if (path === "/api/admin/season") {
+        const err = sim.season.apply(b);
+        if (err) return fail(400, err);
+        sim.dirty = true;
+        return json({ season: sim.season.adminView() });
+      }
+      if (path === "/api/admin/weather") {
+        const err = sim.weather.apply(b);
+        if (err) return fail(400, err);
+        // a new city (or switching to Live) is looked up straight away, so the
+        // admin page can show what was found
+        if (b.city !== undefined || b.mode === "live" || b.useDefaults) await sim.weather.refreshLive(true);
+        sim.dirty = true;
+        return json({ weather: sim.weather.adminView() });
       }
       if (path === "/api/admin/remove-player") {
         return sim.removePlayer(String(b.playerId || "")) ? json({ ok: true }) : fail(404, "Player not found.");

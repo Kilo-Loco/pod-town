@@ -48,8 +48,16 @@ Optional settings, as environment variables on the Pod or template:
 | `TOWN_UPGRADES` | `auto` = the busiest place gets upgraded at each raffle, `manual` = only levels set on the admin page, `off` = no upgrades | `auto` |
 | `TOWN_STATUES` | `1` = each raffle winner gets a statue in the Plaza, `0` = no statues | `1` |
 | `RAFFLE_MINUTES` | Minutes between raffles. Use a small number (e.g. `2`) only for rehearsals and demos | `60` |
+| `WEATHER` | `off`, `auto` (changes at each raffle), `live` (a real city's weather), or one of `clear`, `overcast`, `rain`, `snow`, `fog`, `blossoms` to show all the time | `off` |
+| `WEATHER_CITY` | City for `live` weather, e.g. `San Francisco, US`. Looked up with [Open-Meteo](https://open-meteo.com) (free, no key) every 15 minutes | Not set |
+| `WEATHER_BOOST` | `1` = the activity that suits the weather earns double tickets. The only weather setting that changes raffle odds | `0` |
+| `SEASON` | `off`, `auto` (by date, northern hemisphere), `winter`, `halloween` or `spring`: decorations plus one limited-time activity | `off` |
 
 Town upgrades and statues are decoration only and never change raffle odds.
+Weather and season work the same way: the **Weather** and **Season** sections
+of the admin page change them during the event. Live weather needs the Pod to
+reach the internet. If it can't, the town keeps the last known weather and the
+admin page shows why.
 The **Town upgrades** section of the admin page can switch them off, set each
 place's level, or reset the town during the event. Changes made there override
 these settings and are kept until you press **Use event defaults**.
